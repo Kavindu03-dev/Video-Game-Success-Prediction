@@ -15,7 +15,83 @@ st.title("🎮 Video Game Success Prediction")
 st.caption("Predict whether a game is a Hit (total_sales ≥ 1.0), explore trends, and edit data inline.")
 
 
-@st.cache_resource(show_spinner=False)
+@st.cach			# Render charts in a 2-column grid
+			cols = st.columns(2)
+			for 			# Render charts in a 2-column grid
+			cols = st.columns(2)
+			for i, spec in enumerate(st.session_state.chart_specs):
+				df_spec = pd.DataFrame(spec['data'])
+				chart_type = spec.get('chart_type', 'bar')
+				
+				if chart_type == 'bar':
+					chart = alt.Chart(df_spec).mark_bar().encode(
+						x=alt.X(f"{spec['y_axis']}:Q", title=spec['y_axis'].replace('_',' ').title()),
+						y=alt.Y(f"{spec['x_axis']}:N", sort='-x', title=spec['x_axis'].replace('_',' ').title()),
+						tooltip=list(df_spec.columns)
+					).properties(height=300)
+				elif chart_type == 'line':
+					chart = alt.Chart(df_spec).mark_line(point=True).encode(
+						x=alt.X(f"{spec['x_axis']}:O", title=spec['x_axis'].replace('_',' ').title()),
+						y=alt.Y(f"{spec['y_axis']}:Q", title=spec['y_axis'].replace('_',' ').title()),
+						tooltip=list(df_spec.columns)
+					).properties(height=300)
+				elif chart_type == 'scatter':
+					chart = alt.Chart(df_spec).mark_circle(size=60).encode(
+						x=alt.X(f"{spec['x_axis']}:Q", title=spec['x_axis'].replace('_',' ').title()),
+						y=alt.Y(f"{spec['y_axis']}:Q", title=spec['y_axis'].replace('_',' ').title()),
+						tooltip=list(df_spec.columns)
+					).properties(height=300)
+				elif chart_type == 'area':
+					chart = alt.Chart(df_spec).mark_area().encode(
+						x=alt.X(f"{spec['x_axis']}:O", title=spec['x_axis'].replace('_',' ').title()),
+						y=alt.Y(f"{spec['y_axis']}:Q", title=spec['y_axis'].replace('_',' ').title()),
+						tooltip=list(df_spec.columns)
+					).properties(height=300)
+				else:
+					# Default to bar
+					chart = alt.Chart(df_spec).mark_bar().encode(
+						x=alt.X(f"{spec['y_axis']}:Q", title=spec['y_axis'].replace('_',' ').title()),
+						y=alt.Y(f"{spec['x_axis']}:N", sort='-x', title=spec['x_axis'].replace('_',' ').title()),
+						tooltip=list(df_spec.columns)
+					).properties(height=300)
+				
+				cols[i % 2].altair_chart(chart, use_container_width=True) enumerate(st.session_state.chart_specs):
+				df_spec = pd.DataFrame(spec['data'])
+				chart_type = spec.get('chart_type', 'bar')
+				
+				if chart_type == 'bar':
+					chart = alt.Chart(df_spec).mark_bar().encode(
+						x=alt.X(f"{spec['y_axis']}:Q", title=spec['y_axis'].replace('_',' ').title()),
+						y=alt.Y(f"{spec['x_axis']}:N", sort='-x', title=spec['x_axis'].replace('_',' ').title()),
+						tooltip=list(df_spec.columns)
+					).properties(height=300)
+				elif chart_type == 'line':
+					chart = alt.Chart(df_spec).mark_line(point=True).encode(
+						x=alt.X(f"{spec['x_axis']}:O", title=spec['x_axis'].replace('_',' ').title()),
+						y=alt.Y(f"{spec['y_axis']}:Q", title=spec['y_axis'].replace('_',' ').title()),
+						tooltip=list(df_spec.columns)
+					).properties(height=300)
+				elif chart_type == 'scatter':
+					chart = alt.Chart(df_spec).mark_circle(size=60).encode(
+						x=alt.X(f"{spec['x_axis']}:O" if spec['x_axis'] in cats else f"{spec['x_axis']}:Q", title=spec['x_axis'].replace('_',' ').title()),
+						y=alt.Y(f"{spec['y_axis']}:Q", title=spec['y_axis'].replace('_',' ').title()),
+						tooltip=list(df_spec.columns)
+					).properties(height=300)
+				elif chart_type == 'area':
+					chart = alt.Chart(df_spec).mark_area().encode(
+						x=alt.X(f"{spec['x_axis']}:O", title=spec['x_axis'].replace('_',' ').title()),
+						y=alt.Y(f"{spec['y_axis']}:Q", title=spec['y_axis'].replace('_',' ').title()),
+						tooltip=list(df_spec.columns)
+					).properties(height=300)
+				else:
+					# Default to bar
+					chart = alt.Chart(df_spec).mark_bar().encode(
+						x=alt.X(f"{spec['y_axis']}:Q", title=spec['y_axis'].replace('_',' ').title()),
+						y=alt.Y(f"{spec['x_axis']}:N", sort='-x', title=spec['x_axis'].replace('_',' ').title()),
+						tooltip=list(df_spec.columns)
+					).properties(height=300)
+				
+				cols[i % 2].altair_chart(chart, use_container_width=True)(show_spinner=False)
 def load_model(model_path: Path):
 	with open(model_path, 'rb') as f:
 		return pickle.load(f)
@@ -249,7 +325,7 @@ with tabs[1]:
 		if dim_col in df.columns and total_col in df.columns:
 			s = df.groupby(dim_col, dropna=False)[total_col].sum().sort_values(ascending=False).head(topn)
 			fig, ax = plt.subplots(figsize=(10, 5))
-			sns.barplot(x=s.values, y=s.index, ax=ax, palette="viridis", legend=False)
+			sns.barplot(x=s.values, y=s.index, ax=ax, palette="viridis")
 			ax.set_xlabel("Total Sales")
 			ax.set_ylabel(dim[0])
 			st.pyplot(fig)
@@ -317,7 +393,7 @@ with tabs[3]:
 				if not agg.empty:
 					labels = [str(col).replace("_", " ").title() for col in agg.index]
 					fig, ax = plt.subplots(figsize=(8, 5))
-					sns.barplot(x=agg.values, y=labels, ax=ax, palette="crest", legend=False)
+					sns.barplot(x=agg.values, y=labels, ax=ax, palette="crest")
 					ax.set_xlabel("Total Sales")
 					ax.set_ylabel("Region")
 					st.pyplot(fig)
@@ -354,7 +430,7 @@ with tabs[3]:
 						topn = st.slider("Top N features", 5, 40, 20)
 						sel = order[:topn]
 						fig, ax = plt.subplots(figsize=(8, min(10, 0.4 * topn + 2)))
-						sns.barplot(x=importances[sel], y=feat_names[sel], ax=ax, palette="mako", legend=False)
+						sns.barplot(x=importances[sel], y=feat_names[sel], ax=ax, palette="mako")
 						ax.set_xlabel("Importance")
 						ax.set_ylabel("Feature")
 						st.pyplot(fig)
@@ -463,20 +539,17 @@ with tabs[4]:
 			add_col1, add_col2 = st.columns([1, 3])
 			with add_col1:
 				if st.button("Add Chart"):
-					# Store raw data for scatter plots, aggregated for others
-					data_to_store = dfx[[x_axis, y_axis]].to_dict(orient='list') if chart_type == 'scatter' else s.to_dict(orient='list')
 					st.session_state.chart_specs.append({
 						'x_axis': x_axis,
 						'y_axis': y_axis,
 						'agg_fn': agg_fn,
-						'chart_type': chart_type,
 						'topn': topn,
 						'filters': {
 							'genre': genre_f,
 							'platform': plat_f,
 							'publisher': pub_f,
 						},
-						'data': data_to_store,
+						'data': s.to_dict(orient='list'),
 					})
 			with add_col2:
 				st.altair_chart(base, use_container_width=True)
@@ -488,40 +561,11 @@ with tabs[4]:
 				cols = st.columns(2)
 				for i, spec in enumerate(st.session_state.chart_specs):
 					df_spec = pd.DataFrame(spec['data'])
-					chart_type_spec = spec.get('chart_type', 'bar')
-					
-					if chart_type_spec == 'bar':
-						chart = alt.Chart(df_spec).mark_bar().encode(
-							x=alt.X(f"{spec['y_axis']}:Q", title=spec['y_axis'].replace('_',' ').title()),
-							y=alt.Y(f"{spec['x_axis']}:N", sort='-x', title=spec['x_axis'].replace('_',' ').title()),
-							tooltip=list(df_spec.columns)
-						).properties(height=300)
-					elif chart_type_spec == 'line':
-						chart = alt.Chart(df_spec).mark_line(point=True).encode(
-							x=alt.X(f"{spec['x_axis']}:O", title=spec['x_axis'].replace('_',' ').title()),
-							y=alt.Y(f"{spec['y_axis']}:Q", title=spec['y_axis'].replace('_',' ').title()),
-							tooltip=list(df_spec.columns)
-						).properties(height=300)
-					elif chart_type_spec == 'scatter':
-						chart = alt.Chart(df_spec).mark_circle(size=60).encode(
-							x=alt.X(f"{spec['x_axis']}:Q", title=spec['x_axis'].replace('_',' ').title()),
-							y=alt.Y(f"{spec['y_axis']}:Q", title=spec['y_axis'].replace('_',' ').title()),
-							tooltip=list(df_spec.columns)
-						).properties(height=300)
-					elif chart_type_spec == 'area':
-						chart = alt.Chart(df_spec).mark_area().encode(
-							x=alt.X(f"{spec['x_axis']}:O", title=spec['x_axis'].replace('_',' ').title()),
-							y=alt.Y(f"{spec['y_axis']}:Q", title=spec['y_axis'].replace('_',' ').title()),
-							tooltip=list(df_spec.columns)
-						).properties(height=300)
-					else:
-						# Default to bar
-						chart = alt.Chart(df_spec).mark_bar().encode(
-							x=alt.X(f"{spec['y_axis']}:Q", title=spec['y_axis'].replace('_',' ').title()),
-							y=alt.Y(f"{spec['x_axis']}:N", sort='-x', title=spec['x_axis'].replace('_',' ').title()),
-							tooltip=list(df_spec.columns)
-						).properties(height=300)
-					
+					chart = alt.Chart(df_spec).mark_bar().encode(
+						x=alt.X(f"{spec['y_axis']}:Q", title=spec['y_axis'].replace('_',' ').title()),
+						y=alt.Y(f"{spec['x_axis']}:N", sort='-x', title=spec['x_axis'].replace('_',' ').title()),
+						tooltip=list(df_spec.columns)
+					).properties(height=300)
 					cols[i % 2].altair_chart(chart, use_container_width=True)
 				if st.button("Clear Dashboard"):
 					st.session_state.chart_specs = []
@@ -529,3 +573,4 @@ with tabs[4]:
 				st.info("Use 'Add Chart' to collect charts here for side-by-side comparison.")
 		else:
 			st.warning("Select valid X and Y columns available in the dataset.")
+
