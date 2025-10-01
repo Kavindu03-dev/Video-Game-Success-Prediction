@@ -373,27 +373,48 @@ with tabs[4]:
 		cats = _categorical_candidates(df)
 		nums = _numeric_candidates(df)
 
-		# Chart builder controls
-		c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1, 1])
+		# Chart builder controls (choose axes & aggregation)
+		c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
+		# Build X options from categoricals + numerics
+		x_options = (cats + nums)
 		with c1:
-			x_axis = st.selectbox("X Axis", options=cats + nums, index=(cats + nums).index('platform') if 'platform' in (cats + nums) else 0)
+			x_axis = st.selectbox(
+				"X Axis",
+				options=x_options,
+				index=(x_options.index('platform') if 'platform' in x_options else 0),
+			)
+		# Build Y options from numeric candidates, excluding the selected X if present
+		y_options = [c for c in nums if c != x_axis]
+		# Ensure there is at least one option for Y
+		if not y_options:
+			y_options = nums[:]
 		with c2:
-			y_axis = st.selectbox("Y Axis (metric)", options=nums, index=nums.index('total_sales') if 'total_sales' in nums else 0)
+			y_axis = st.selectbox(
+				"Y Axis (metric)",
+				options=y_options,
+				index=(y_options.index('total_sales') if 'total_sales' in y_options and len(y_options) > 0 else 0),
+			)
 		with c3:
 			agg_fn = st.selectbox("Aggregation", options=['sum', 'mean', 'median', 'count'])
 		with c4:
 			chart_type = st.selectbox("Chart Type", options=['bar', 'line', 'scatter', 'area'], index=0)
-		with c5:
-			topn = st.slider("Top N", 5, 50, 10)
 
-		# Optional filters
-		f1, f2, f3 = st.columns(3)
+		# Optional filters (including release year range)
+		f1, f2, f3, f4 = st.columns(4)
 		with f1:
 			genre_f = st.multiselect("Filter Genre", options=sorted(df.get(genre_col, pd.Series(dtype=str)).dropna().unique().tolist()) if genre_col in df.columns else [])
 		with f2:
 			plat_f = st.multiselect("Filter Platform", options=sorted(df.get(platform_col, pd.Series(dtype=str)).dropna().unique().tolist()) if platform_col in df.columns else [])
 		with f3:
 			pub_f = st.multiselect("Filter Publisher", options=sorted(df.get(publisher_col, pd.Series(dtype=str)).dropna().unique().tolist()) if publisher_col in df.columns else [])
+		with f4:
+			# Release year range filter (works if 'release_year' exists)
+			if 'release_year' in df.columns:
+				min_year = int(pd.to_numeric(df['release_year'], errors='coerce').min()) if pd.to_numeric(df['release_year'], errors='coerce').notna().any() else 1980
+				max_year = int(pd.to_numeric(df['release_year'], errors='coerce').max()) if pd.to_numeric(df['release_year'], errors='coerce').notna().any() else 2030
+				start, end = st.slider("Release Year", min_value=min_year, max_value=max_year, value=(min_year, max_year))
+			else:
+				start = end = None
 
 		dfx = df.copy()
 		if genre_col in dfx.columns and genre_f:
@@ -402,6 +423,15 @@ with tabs[4]:
 			dfx = dfx[dfx[platform_col].isin(plat_f)]
 		if publisher_col in dfx.columns and pub_f:
 			dfx = dfx[dfx[publisher_col].isin(pub_f)]
+		# Apply release year range filtering after other categorical filters
+		if 'release_year' in dfx.columns and start is not None and end is not None:
+			years = pd.to_numeric(dfx['release_year'], errors='coerce')
+			dfx = dfx[(years >= start) & (years <= end)]
+
+		# Top N control (applies after all filtering) and Aggregate
+		c_top = st.columns([1])[0]
+		with c_top:
+			topn = st.slider("Top N", 5, 50, 10)
 
 		# Aggregate
 		if x_axis in dfx.columns and y_axis in dfx.columns:
