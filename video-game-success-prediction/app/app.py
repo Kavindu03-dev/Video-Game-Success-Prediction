@@ -128,46 +128,21 @@ def _ensure_total_sales(df: pd.DataFrame) -> pd.DataFrame:
 
 
 with st.sidebar:
-	st.header("Prediction Inputs")
-	st.write("Fill in the fields and click Predict.")
+	st.header("Navigation")
+	# Keep current page in session state
+	if 'page' not in st.session_state:
+		st.session_state.page = "Overview"
 
-	if st.button("🔄 Refresh data", help="Clear cache and reload the dataset"):
-		try:
-			st.cache_data.clear()
-			st.cache_resource.clear()
-			st.success("Caches cleared. Use the menu 'Rerun' to reload.")
-		except Exception as e:
-			st.warning(f"Could not clear cache: {e}")
+	# Button-based navigation with gaps between items
+	for label in ["Overview", "Explore", "Predict", "Insights", "Developer Dashboard"]:
+		st.button(label, use_container_width=True, key=f"nav_{label.replace(' ', '_')}", disabled=(st.session_state.page == label), help=f"Go to {label}")
+		# Handle click by checking the button key in session state
+		if st.session_state.get(f"nav_{label.replace(' ', '_')}"):
+			st.session_state.page = label
+		# Add a small vertical gap
+		st.write("")
 
-	# Normalize and ensure total_sales
-	if df is not None:
-		df = _ensure_total_sales(df)
-
-	# Resolve columns case-insensitively
-	genre_col = _resolve_column(df, ["genre"]) if df is not None else None
-	platform_col = _resolve_column(df, ["platform"]) if df is not None else None
-	publisher_col = _resolve_column(df, ["publisher"]) if df is not None else None
-
-	# Safely populate select boxes from data when available
-	genre_options = sorted(df[genre_col].dropna().unique().tolist()) if df is not None and genre_col in (df.columns if df is not None else []) else []
-	platform_options = sorted(df[platform_col].dropna().unique().tolist()) if df is not None and platform_col in (df.columns if df is not None else []) else []
-	publisher_options = sorted(df[publisher_col].dropna().unique().tolist()) if df is not None and publisher_col in (df.columns if df is not None else []) else []
-
-	# Fallback to some common values if dataset not available
-	if not genre_options:
-		genre_options = ["Action", "Adventure", "Sports", "RPG", "Shooter", "Racing", "Platform", "Puzzle"]
-	if not platform_options:
-		platform_options = ["PS4", "XOne", "Switch", "PC", "PS3", "Xbox360", "Wii"]
-	if not publisher_options:
-		publisher_options = ["Nintendo", "EA", "Activision", "Ubisoft", "Sony", "Microsoft"]
-
-	genre = st.selectbox("Genre", options=genre_options, index=0)
-	platform = st.selectbox("Platform", options=platform_options, index=0)
-	publisher = st.selectbox("Publisher", options=publisher_options, index=0)
-	critic_score = st.number_input("Critic Score", min_value=0.0, max_value=100.0, value=75.0, step=0.5)
-	release_year = st.number_input("Release Year", min_value=1980, max_value=2030, value=2015, step=1)
-
-	do_predict = st.button("Predict Hit")
+	page = st.session_state.page
 
 
 def predict_hit(model, genre: str, platform: str, publisher: str, critic_score: float, release_year: int) -> tuple[int, float]:
@@ -188,8 +163,8 @@ def predict_hit(model, genre: str, platform: str, publisher: str, critic_score: 
 	return pred, float(proba)
 
 
-# ------------- Navigation Tabs -------------
-tabs = st.tabs(["Overview", "Explore", "Predict", "Insights", "Developer Dashboard"])
+# ------------- Navigation (Sidebar menu) -------------
+# Content will render based on 'page' selection
 
 # Shared: ensure total_sales and resolved column names
 if df is not None and not df.empty:
@@ -202,25 +177,41 @@ else:
 	genre_col = platform_col = publisher_col = total_col = None
 
 
-# Overview Tab
-with tabs[0]:
+if page == "Overview":
 	st.subheader("Overview")
 	if df is None or df.empty:
 		st.info("Dataset not loaded. Place vg_sales_2024.csv under data/ or data/raw/.")
 	else:
-		c1, c2, c3 = st.columns(3)
+		# Prepare preprocessed row count (basic: ensure essential columns and dropna)
+		crit_col = _resolve_column(df, ["critic_score", "critic", "meta_score", "metacritic"]) or "critic_score"
+		needed = [c for c in [genre_col, platform_col, publisher_col, crit_col, "release_year"] if c and c in df.columns]
+		df_proc = _ensure_release_year(_ensure_total_sales(df))
+		pre_count = len(df_proc.dropna(subset=needed)) if needed else len(df)
+
+		# Compute correct Hit Rate: prefer explicit Hit column; else fallback to total_sales ≥ 1.0
+		hit_col = _resolve_column(df, ["hit", "is_hit", "label"])
+		hit_rate_val = None
+		if hit_col and hit_col in df.columns:
+			vals = pd.to_numeric(df[hit_col], errors='coerce')
+			if vals.notna().any():
+				hit_rate_val = float(vals.mean())
+		if hit_rate_val is None and total_col in df.columns:
+			thresh = 1.0
+			vals = pd.to_numeric(df[total_col], errors='coerce')
+			mask = vals >= thresh
+			if mask.notna().any():
+				hit_rate_val = float(mask.mean())
+
+		c1, c2, c3, c4 = st.columns(4)
 		with c1:
 			st.metric("Rows", f"{len(df):,}")
 		with c2:
+			st.metric("Rows (preprocessed)", f"{pre_count:,}")
+		with c3:
 			n_cols = len(df.columns)
 			st.metric("Columns", f"{n_cols}")
-		with c3:
-			# Estimate hit rate if Hit exists or computable
-			hit_col = _resolve_column(df, ["hit"]) or "Hit"
-			if hit_col in df.columns:
-				st.metric("Hit Rate", f"{pd.to_numeric(df[hit_col], errors='coerce').mean():.2%}")
-			else:
-				st.metric("Hit Rate", "—")
+		with c4:
+			st.metric("Hit Rate", f"{hit_rate_val:.2%}" if hit_rate_val is not None else "—")
 
 		st.write("Preview")
 		st.dataframe(df.head(20), use_container_width=True)
@@ -234,11 +225,10 @@ with tabs[0]:
 				edited.to_csv(out_path, index=False)
 				st.success(f"Saved edited sample to {out_path}")
 			except Exception as e:
-				st.error(f"Failed to save: {e}")
+ 				st.error(f"Failed to save: {e}")
 
 
-# Explore Tab
-with tabs[1]:
+elif page == "Explore":
 	st.subheader("Explore Sales")
 	if df is None or df.empty:
 		st.info("Dataset not loaded.")
@@ -257,13 +247,38 @@ with tabs[1]:
 			st.warning("Required columns for this plot were not found.")
 
 
-# Predict Tab
-with tabs[2]:
+elif page == "Predict":
 	st.subheader("Predict Hit / Not Hit")
-	c1, c2 = st.columns([1, 2])
-	with c1:
+	# Prepare options from data
+	if df is not None:
+		df = _ensure_total_sales(df)
+	genre_col_sb = _resolve_column(df, ["genre"]) if df is not None else None
+	platform_col_sb = _resolve_column(df, ["platform"]) if df is not None else None
+	publisher_col_sb = _resolve_column(df, ["publisher"]) if df is not None else None
+
+	genre_options = sorted(df[genre_col_sb].dropna().unique().tolist()) if df is not None and genre_col_sb in (df.columns if df is not None else []) else []
+	platform_options = sorted(df[platform_col_sb].dropna().unique().tolist()) if df is not None and platform_col_sb in (df.columns if df is not None else []) else []
+	publisher_options = sorted(df[publisher_col_sb].dropna().unique().tolist()) if df is not None and publisher_col_sb in (df.columns if df is not None else []) else []
+
+	# Fallback defaults
+	if not genre_options:
+		genre_options = ["Action", "Adventure", "Sports", "RPG", "Shooter", "Racing", "Platform", "Puzzle"]
+	if not platform_options:
+		platform_options = ["PS4", "XOne", "Switch", "PC", "PS3", "Xbox360", "Wii"]
+	if not publisher_options:
+		publisher_options = ["Nintendo", "EA", "Activision", "Ubisoft", "Sony", "Microsoft"]
+
+	# Layout for inputs and results
+	ci1, ci2 = st.columns([1, 2])
+	with ci1:
+		st.markdown("### Prediction Inputs")
+		genre = st.selectbox("Genre", options=genre_options, index=0)
+		platform = st.selectbox("Platform", options=platform_options, index=0)
+		publisher = st.selectbox("Publisher", options=publisher_options, index=0)
+		critic_score = st.number_input("Critic Score", min_value=0.0, max_value=100.0, value=75.0, step=0.5)
+		release_year = st.number_input("Release Year", min_value=1980, max_value=2030, value=2015, step=1)
 		threshold = st.slider("Decision threshold (P[Hit])", min_value=0.05, max_value=0.95, value=0.5, step=0.05)
-		if do_predict:
+		if st.button("Predict Hit"):
 			try:
 				pred, proba = predict_hit(model, genre, platform, publisher, critic_score, release_year)
 				pred = int(proba >= threshold)
@@ -272,11 +287,9 @@ with tabs[2]:
 				st.progress(min(max(proba, 0.0), 1.0), text=f"Probability of Hit: {proba:.2%}")
 			except Exception as e:
 				st.error(str(e))
-		else:
-			st.info("Set inputs in the sidebar and click Predict.")
 
-	with c2:
-		st.write("Batch Prediction (edit rows and click Predict)")
+	with ci2:
+		st.markdown("### Batch Prediction")
 		template = pd.DataFrame([
 			{"genre": genre_options[0] if genre_options else "Action", "platform": platform_options[0] if platform_options else "PS4", "publisher": publisher_options[0] if publisher_options else "Nintendo", "critic_score": 75.0, "release_year": 2015}
 		])
@@ -295,8 +308,7 @@ with tabs[2]:
 				st.error(f"Batch prediction failed: {e}")
 
 
-# Insights Tab
-with tabs[3]:
+elif page == "Insights":
 	st.subheader("Insights")
 	if df is None or df.empty:
 		st.info("Dataset not loaded.")
@@ -362,8 +374,7 @@ with tabs[3]:
 					st.error(f"Failed to compute feature importances: {e}")
 
 
-# Developer Dashboard Tab
-with tabs[4]:
+elif page == "Developer Dashboard":
 	st.subheader("Developer Dashboard")
 	if df is None or df.empty:
 		st.info("Dataset not loaded.")
