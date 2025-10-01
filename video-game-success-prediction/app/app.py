@@ -373,8 +373,8 @@ with tabs[4]:
 		cats = _categorical_candidates(df)
 		nums = _numeric_candidates(df)
 
-		# Chart builder controls
-		c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1, 1])
+		# Chart builder controls (Top N moved below filters)
+		c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
 		with c1:
 			x_axis = st.selectbox("X Axis", options=cats + nums, index=(cats + nums).index('platform') if 'platform' in (cats + nums) else 0)
 		with c2:
@@ -383,17 +383,27 @@ with tabs[4]:
 			agg_fn = st.selectbox("Aggregation", options=['sum', 'mean', 'median', 'count'])
 		with c4:
 			chart_type = st.selectbox("Chart Type", options=['bar', 'line', 'scatter', 'area'], index=0)
-		with c5:
-			topn = st.slider("Top N", 5, 50, 10)
 
 		# Optional filters
-		f1, f2, f3 = st.columns(3)
+		f1, f2, f3, f4 = st.columns(4)
 		with f1:
 			genre_f = st.multiselect("Filter Genre", options=sorted(df.get(genre_col, pd.Series(dtype=str)).dropna().unique().tolist()) if genre_col in df.columns else [])
 		with f2:
 			plat_f = st.multiselect("Filter Platform", options=sorted(df.get(platform_col, pd.Series(dtype=str)).dropna().unique().tolist()) if platform_col in df.columns else [])
 		with f3:
 			pub_f = st.multiselect("Filter Publisher", options=sorted(df.get(publisher_col, pd.Series(dtype=str)).dropna().unique().tolist()) if publisher_col in df.columns else [])
+		with f4:
+			# Release Year range filter (dual-handle slider)
+			# Ensure release_year exists (already ensured above)
+			years_series = pd.to_numeric(df.get('release_year', pd.Series(dtype=int)), errors='coerce')
+			if years_series.dropna().empty:
+				# Fallback: attempt to derive from release_date if present
+				date_col = _resolve_column(df, ['release_date', 'date'])
+				if date_col in df.columns:
+					years_series = pd.to_datetime(df[date_col], errors='coerce').dt.year
+			min_y = int(years_series.dropna().min()) if not years_series.dropna().empty else 1980
+			max_y = int(years_series.dropna().max()) if not years_series.dropna().empty else 2030
+			year_range = st.slider("Release Year", min_value=min_y, max_value=max_y, value=(min_y, max_y), step=1, help="Select start and end year")
 
 		dfx = df.copy()
 		if genre_col in dfx.columns and genre_f:
@@ -402,6 +412,14 @@ with tabs[4]:
 			dfx = dfx[dfx[platform_col].isin(plat_f)]
 		if publisher_col in dfx.columns and pub_f:
 			dfx = dfx[dfx[publisher_col].isin(pub_f)]
+		# Apply year range filter
+		if 'year_range' in locals() and isinstance(year_range, (list, tuple)) and len(year_range) == 2:
+			start_y, end_y = int(year_range[0]), int(year_range[1])
+			if 'release_year' in dfx.columns:
+				dfx = dfx[(pd.to_numeric(dfx['release_year'], errors='coerce') >= start_y) & (pd.to_numeric(dfx['release_year'], errors='coerce') <= end_y)]
+
+		# Top N after filters
+		topn = st.slider("Top N", 5, 50, 10)
 
 		# Aggregate
 		if x_axis in dfx.columns and y_axis in dfx.columns:
@@ -465,6 +483,8 @@ with tabs[4]:
 				if st.button("Add Chart"):
 					# Store raw data for scatter plots, aggregated for others
 					data_to_store = dfx[[x_axis, y_axis]].to_dict(orient='list') if chart_type == 'scatter' else s.to_dict(orient='list')
+					# Prepare release year filter snapshot
+					release_year_filter = [int(year_range[0]), int(year_range[1])] if ('year_range' in locals() and isinstance(year_range, (list, tuple))) else None
 					st.session_state.chart_specs.append({
 						'x_axis': x_axis,
 						'y_axis': y_axis,
@@ -475,6 +495,7 @@ with tabs[4]:
 							'genre': genre_f,
 							'platform': plat_f,
 							'publisher': pub_f,
+							'release_year': release_year_filter,
 						},
 						'data': data_to_store,
 					})
