@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pickle
 from pathlib import Path
+import math
 
 import pandas as pd
 import streamlit as st
@@ -172,9 +173,10 @@ if df is not None and not df.empty:
 	genre_col = _resolve_column(df, ["genre", "category", "type"]) or "genre"
 	platform_col = _resolve_column(df, ["platform", "console", "system", "platform_name"]) or "platform"
 	publisher_col = _resolve_column(df, ["publisher"]) or "publisher"
+	developer_col = _resolve_column(df, ["developer", "dev"]) or "developer"
 	total_col = _resolve_column(df, ["total_sales", "global_sales", "globalsales", "global"]) or "total_sales"
 else:
-	genre_col = platform_col = publisher_col = total_col = None
+	genre_col = platform_col = publisher_col = developer_col = total_col = None
 
 
 if page == "Overview":
@@ -183,10 +185,14 @@ if page == "Overview":
 		st.info("Dataset not loaded. Place vg_sales_2024.csv under data/ or data/raw/.")
 	else:
 		# Prepare preprocessed row count (basic: ensure essential columns and dropna)
-		crit_col = _resolve_column(df, ["critic_score", "critic", "meta_score", "metacritic"]) or "critic_score"
-		needed = [c for c in [genre_col, platform_col, publisher_col, crit_col, "release_year"] if c and c in df.columns]
+		# Updated logic: align with preprocessing rule to only drop rows where total_sales is null
 		df_proc = _ensure_release_year(_ensure_total_sales(df))
-		pre_count = len(df_proc.dropna(subset=needed)) if needed else len(df)
+		# Remove exact duplicates before counting (matches preprocessing behavior)
+		df_proc = df_proc.drop_duplicates()
+		if total_col in df_proc.columns:
+			pre_count = int(df_proc[total_col].notna().sum())
+		else:
+			pre_count = len(df_proc)
 
 		# Compute correct Hit Rate: prefer explicit Hit column; else fallback to total_sales ≥ 1.0
 		hit_col = _resolve_column(df, ["hit", "is_hit", "label"])
@@ -255,10 +261,12 @@ elif page == "Predict":
 	genre_col_sb = _resolve_column(df, ["genre"]) if df is not None else None
 	platform_col_sb = _resolve_column(df, ["platform"]) if df is not None else None
 	publisher_col_sb = _resolve_column(df, ["publisher"]) if df is not None else None
+	developer_col_sb = _resolve_column(df, ["developer", "dev"]) if df is not None else None
 
 	genre_options = sorted(df[genre_col_sb].dropna().unique().tolist()) if df is not None and genre_col_sb in (df.columns if df is not None else []) else []
 	platform_options = sorted(df[platform_col_sb].dropna().unique().tolist()) if df is not None and platform_col_sb in (df.columns if df is not None else []) else []
 	publisher_options = sorted(df[publisher_col_sb].dropna().unique().tolist()) if df is not None and publisher_col_sb in (df.columns if df is not None else []) else []
+	developer_options = sorted(df[developer_col_sb].dropna().unique().tolist()) if df is not None and developer_col_sb in (df.columns if df is not None else []) else []
 
 	# Fallback defaults
 	if not genre_options:
@@ -267,6 +275,8 @@ elif page == "Predict":
 		platform_options = ["PS4", "XOne", "Switch", "PC", "PS3", "Xbox360", "Wii"]
 	if not publisher_options:
 		publisher_options = ["Nintendo", "EA", "Activision", "Ubisoft", "Sony", "Microsoft"]
+	if not developer_options:
+		developer_options = ["Nintendo", "EA", "Ubisoft", "FromSoftware", "Capcom", "Square Enix"]
 
 	# Layout for inputs and results
 	ci1, ci2 = st.columns([1, 2])
@@ -306,6 +316,66 @@ elif page == "Predict":
 				st.dataframe(out, use_container_width=True)
 			except Exception as e:
 				st.error(f"Batch prediction failed: {e}")
+
+	# -------- New Section: Predict Years to Hit (avg yearly sales) --------
+	st.divider()
+	st.markdown("### Predict Years to Hit (avg yearly sales)")
+	st.caption("Estimate years needed to reach Hit based on the average yearly sales of similar games. Assumes Hit threshold = 1.0 and starting sales = 0.")
+
+	# Build filter options with an 'Any' choice
+	genre_sel = st.selectbox("Genre (filter)", options=["Any"] + genre_options, index=0)
+	platform_sel = st.selectbox("Platform (filter)", options=["Any"] + platform_options, index=0)
+	publisher_sel = st.selectbox("Publisher (filter)", options=["Any"] + publisher_options, index=0)
+	developer_sel = st.selectbox("Developer (filter)", options=["Any"] + developer_options, index=0)
+
+	if st.button("Estimate years to hit (avg yearly sales)"):
+		try:
+			if df is None or df.empty:
+				st.info("Dataset not loaded.")
+			else:
+				# Prepare data with required fields
+				df_rate = _ensure_release_year(_ensure_total_sales(df.copy()))
+				if 'release_year' not in df_rate.columns or total_col not in df_rate.columns:
+					st.warning("Required columns not available to compute average yearly sales.")
+				else:
+					# Apply filters
+					sub = df_rate.copy()
+					if genre_sel != "Any" and genre_col_sb in sub.columns:
+						sub = sub[sub[genre_col_sb] == genre_sel]
+					if platform_sel != "Any" and platform_col_sb in sub.columns:
+						sub = sub[sub[platform_col_sb] == platform_sel]
+					if publisher_sel != "Any" and publisher_col_sb in sub.columns:
+						sub = sub[sub[publisher_col_sb] == publisher_sel]
+					if developer_sel != "Any" and (developer_col_sb in sub.columns):
+						sub = sub[sub[developer_col_sb] == developer_sel]
+
+					if sub.empty:
+						st.info("No matching rows for the selected filters.")
+					else:
+						CURRENT_YEAR = 2025
+						vals_year = pd.to_numeric(sub['release_year'], errors='coerce')
+						years_elapsed = (CURRENT_YEAR - vals_year)
+						years_elapsed = years_elapsed.where(years_elapsed >= 1, 1)
+						vals_sales = pd.to_numeric(sub[total_col], errors='coerce')
+						rate = vals_sales / years_elapsed
+						avg_rate = float(rate.mean(skipna=True)) if rate.notna().any() else float('nan')
+
+						if not pd.notna(avg_rate) or avg_rate <= 0:
+							st.info("Cannot estimate: average yearly sales is not available or non-positive for the selected filters.")
+						else:
+							hit_threshold = 1.0  # fixed as requested (do not ask user)
+							current_sales = 0.0   # assume starting from 0 (do not ask user)
+							years_needed = math.ceil(max(0.0, hit_threshold - current_sales) / avg_rate)
+							cya, cyb, cyc = st.columns(3)
+							with cya:
+								st.metric("Avg yearly sales", f"{avg_rate:.3f}")
+							with cyb:
+								st.metric("Assumed Hit threshold", f"{hit_threshold:.1f}")
+							with cyc:
+								st.metric("Estimated years to Hit", f"{years_needed}")
+							st.caption(f"Based on {len(sub)} matching games.")
+		except Exception as e:
+			st.error(f"Failed to estimate years to hit: {e}")
 
 
 elif page == "Insights":
