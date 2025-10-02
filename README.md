@@ -1,71 +1,51 @@
 # Video Game Success Prediction
 
-End-to-end ML project to predict whether a video game will be a Hit (total_sales ≥ 1.0) and explore sales trends via a Streamlit app.
+A Fundamentals of Data Mining project: predict whether a video game will be a commercial success (≥ 1M units) using metadata from `vg_sales_2024.csv` and evaluate multiple models.
 
-This repository contains the working project under `video-game-success-prediction/`.
+## Target definition
+- success = 1 if `total_sales` ≥ 1.0 (million units), else 0.
+- Rationale: aligns with a tangible real-world goal — forecasting if a new title can reach 1M units.
 
-## 🚀 Quick Start
+## Pipeline overview
+1. Load CSV
+2. Engineer target and features
+   - Numeric: `critic_score`, `release_year`
+   - Categorical: `console`, `genre`, `publisher`, `developer`
+3. Preprocessing
+   - Impute missing values (median/most_frequent)
+   - Scale numeric features; one-hot encode categoricals
+4. Train/test split (80/20, stratified)
+5. Models (4)
+   - Logistic Regression
+   - Random Forest
+   - Gradient Boosting
+   - SVC (RBF)
+6. Metrics: Accuracy and F1; choose best by F1 then accuracy
+7. Persist best model (joblib)
+
+## Setup (Windows PowerShell)
 
 ```powershell
-cd "video-game-success-prediction"
+# Create venv (optional)
+python -m venv .venv; .\.venv\Scripts\Activate.ps1
 
-# Setup environment
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
+# Install dependencies
 pip install -r requirements.txt
 
-# Train model & run app
-python -m src.train_model
-streamlit run app\app.py --server.port 8504
+# Train
+python .\src\train.py
+
+# Run app (Streamlit)
+streamlit run .\src\app.py
 ```
 
-Then open http://localhost:8504 in your browser.
+## Files
+- `data/vg_sales_2024.csv` — dataset
+- `src/train.py` — training + model selection
+- `src/app.py` — Streamlit prediction app
+- `models/` — saved `best_model.joblib` and `metrics.json`
 
-## 📁 Project Structure
-
-```
-video-game-success-prediction/
-├── app/app.py              # Streamlit web application
-├── data/vg_sales_2024.csv  # Dataset (place here)
-├── notebooks/              # 01-04: EDA, preprocessing, modeling, explainability
-├── src/                    # Training & preprocessing code
-├── tests/                  # Unit tests
-├── requirements.txt        # Dependencies
-└── model.pkl              # Trained model (created after training)
-```
-
-## 📊 Dataset
-
-Place `vg_sales_2024.csv` in `video-game-success-prediction/data/`.
-
-**Required columns:** total_sales, genre, platform, publisher, critic_score, release_date/release_year
-**Optional:** na_sales, eu_sales, jp_sales, other_sales
-
-## 🎯 Features
-
-**Streamlit App:**
-- Predict Hit/Not Hit from game attributes
-- Visualize sales by genre, platform, region
-- Interactive charts and dashboards
-
-**Notebooks:** Complete analysis pipeline from EDA to model explainability
-
-**Model:** Random Forest with OneHot encoding, ~80% accuracy
-
-## 🔧 Troubleshooting
-
-- **"Model not found":** Run `python -m src.train_model` first
-- **Memory warnings:** Large dataset with high-cardinality features (normal)
-- **Port conflicts:** Use different port: `--server.port 8505`
-- **Package errors:** Use Python 3.11+ for pre-built wheels
-
-## 🧪 Testing
-
-```powershell
-pip install pytest
-pytest -q
-```
-
-## License
-
-Educational use only. Comply with dataset license terms.
+## Notes
+- Feel free to adjust `SUCCESS_THRESHOLD` in `src/train.py` if your rubric defines success differently.
+- If class imbalance is high, consider using class_weight='balanced' for some models or tune thresholds.
+- Extend features (e.g., region dummy variables, franchise detection) for better accuracy.
