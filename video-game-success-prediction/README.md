@@ -8,9 +8,8 @@ End-to-end ML project to predict whether a video game will be a Hit (total_sales
   - processed/: cleaned/engineered datasets
 - notebooks/
   - 01_exploration.ipynb — dataset understanding + EDA
-  - 02_preprocessing.ipynb — cleaning + feature engineering
   - 03_modeling.ipynb — training + evaluation + feature importance + SHAP
-  - 04_explainability.ipynb — additional explainability (optional)
+  - (Preprocessing and explainability are implemented in src/ and the app.)
 - src/
   - preprocessing.py — cleaning, labeling, encoding helpers
   - train_model.py — trains and saves a RandomForest pipeline (model.pkl)
@@ -69,11 +68,11 @@ App features:
 - Visualizations: sales by genre, platform, and region
 
 ## Notebooks
-Open and run in order:
+Open and run:
 1. `01_exploration.ipynb` — load, inspect, and visualize top-10 categories and correlations
-2. `02_preprocessing.ipynb` — demonstrate cleaning/feature engineering
-3. `03_modeling.ipynb` — Logistic Regression and Random Forest, comparison, CV, feature importance, SHAP
-4. `04_explainability.ipynb` — deeper model explainability (optional)
+2. `03_modeling.ipynb` — modeling experiments (overlaps with src/train_model.ipynb)
+
+Note: Preprocessing is implemented in `src/preprocessing.ipynb` and used by training/app. Explainability visuals are provided in the Streamlit app (Insights). You may also add deeper explainability to `03_modeling.ipynb` if needed.
 
 ## Preprocessing functions (src/preprocessing.py)
 - `clean_dataset(df, date_col='release_date', fill_unknown='Unknown', bool_fill=False, drop_all_nan_rows=True)`
