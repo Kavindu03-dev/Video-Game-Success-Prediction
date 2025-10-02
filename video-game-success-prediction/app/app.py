@@ -49,6 +49,10 @@ if data_path.exists():
 		# Normalize column names: strip spaces
 		df = df.copy()
 		df.columns = df.columns.str.strip()
+		# Drop non-predictive columns
+		for col in ["img"]:
+			if col in df.columns:
+				df = df.drop(columns=[col])
 	except Exception as e:
 		st.error(f"Failed to load data: {e}")
 else:
@@ -202,11 +206,10 @@ if page == "Overview":
 			if mask.notna().any():
 				hit_rate_val = float(mask.mean())
 
-		c1, c2, c3, c4 = st.columns(4)
+		c1, c3, c4 = st.columns(3)
 		with c1:
 			st.metric("Rows", f"{len(df):,}")
-		with c2:
-			st.metric("Rows (preprocessed)", f"{pre_count:,}")
+		
 		with c3:
 			n_cols = len(df.columns)
 			st.metric("Columns", f"{n_cols}")
