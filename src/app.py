@@ -233,22 +233,334 @@ if page == "Overview":
                 st.error(f"Failed to save: {e}")
 
 elif page == "Explore":
-    st.subheader("Explore Sales")
+    st.subheader("🎯 Sales Analytics Dashboard")
+    st.markdown("Explore video game sales data with interactive visualizations and insights")
+    
     if df is None or df.empty:
         st.info("Dataset not loaded.")
     else:
-        dim = st.selectbox("Group by", options=[("Genre", genre_col), ("Console", console_col), ("Publisher", publisher_col)], index=0, format_func=lambda x: x[0])
-        topn = st.slider("Top N", min_value=5, max_value=30, value=10, step=1)
+        # Create a more comprehensive explore interface
+        col1, col2, col3 = st.columns([2, 1, 1])
+        
+        with col1:
+            st.markdown("### 📊 Sales Analysis")
+        
+        with col2:
+            chart_type = st.selectbox(
+                "Chart Type", 
+                options=["Bar Chart", "Horizontal Bar", "Pie Chart", "Donut Chart", "Line Chart"],
+                index=0,
+                help="Choose your preferred visualization style"
+            )
+        
+        with col3:
+            metric_type = st.selectbox(
+                "Metric", 
+                options=["Total Sales", "Average Sales", "Median Sales", "Game Count"],
+                index=0,
+                help="Select the metric to analyze"
+            )
+        
+        # Main controls
+        col4, col5, col6 = st.columns([2, 1, 1])
+        
+        with col4:
+            dim = st.selectbox(
+                "Group by", 
+                options=[("Genre", genre_col), ("Console", console_col), ("Publisher", publisher_col), ("Developer", developer_col)], 
+                index=0, 
+                format_func=lambda x: x[0],
+                help="Select the category to analyze"
+            )
+        
+        with col5:
+            topn = st.slider("Top N", min_value=5, max_value=50, value=15, step=1, help="Number of top items to display")
+        
+        with col6:
+            show_percentages = st.checkbox("Show Percentages", value=True, help="Display percentage values on charts")
+        
+        # Additional filters
+        with st.expander("🔍 Advanced Filters", expanded=False):
+            filter_col1, filter_col2, filter_col3 = st.columns(3)
+            
+            with filter_col1:
+                year_range = st.slider(
+                    "Release Year Range", 
+                    min_value=1980, 
+                    max_value=2025, 
+                    value=(1990, 2025),
+                    step=1,
+                    help="Filter games by release year"
+                )
+            
+            with filter_col2:
+                min_sales = st.number_input(
+                    "Minimum Sales (M)", 
+                    min_value=0.0, 
+                    max_value=100.0, 
+                    value=0.0, 
+                    step=0.1,
+                    help="Filter out games with sales below this threshold"
+                )
+            
+            with filter_col3:
+                sort_order = st.selectbox(
+                    "Sort Order", 
+                    options=["Descending", "Ascending"], 
+                    index=0,
+                    help="Sort results in ascending or descending order"
+                )
+        
         dim_col = dim[1]
         if dim_col in df.columns and total_col in df.columns:
-            s = df.groupby(dim_col, dropna=False)[total_col].sum().sort_values(ascending=False).head(topn)
-            fig, ax = plt.subplots(figsize=(10, 5))
-            sns.barplot(x=s.values, y=s.index, ax=ax, palette="viridis", legend=False)
-            ax.set_xlabel("Total Sales")
-            ax.set_ylabel(dim[0])
-            st.pyplot(fig)
+            # Apply filters
+            df_filtered = df.copy()
+            
+            # Year filter
+            if 'release_year' in df_filtered.columns:
+                df_filtered = df_filtered[
+                    (pd.to_numeric(df_filtered['release_year'], errors='coerce') >= year_range[0]) &
+                    (pd.to_numeric(df_filtered['release_year'], errors='coerce') <= year_range[1])
+                ]
+            
+            # Sales filter
+            df_filtered = df_filtered[pd.to_numeric(df_filtered[total_col], errors='coerce') >= min_sales]
+            
+            if df_filtered.empty:
+                st.warning("No data matches the selected filters. Try adjusting your criteria.")
+            else:
+                # Calculate metrics based on selection
+                if metric_type == "Total Sales":
+                    s = df_filtered.groupby(dim_col, dropna=False)[total_col].sum()
+                elif metric_type == "Average Sales":
+                    s = df_filtered.groupby(dim_col, dropna=False)[total_col].mean()
+                elif metric_type == "Median Sales":
+                    s = df_filtered.groupby(dim_col, dropna=False)[total_col].median()
+                elif metric_type == "Game Count":
+                    s = df_filtered.groupby(dim_col, dropna=False).size()
+                
+                # Sort data
+                ascending = sort_order == "Ascending"
+                s = s.sort_values(ascending=ascending).head(topn)
+                
+                if s.empty:
+                    st.warning("No data available for the selected criteria.")
+                else:
+                    # Create visualizations based on chart type
+                    if chart_type in ["Bar Chart", "Horizontal Bar"]:
+                        # Use Altair for better interactivity
+                        chart_data = pd.DataFrame({
+                            dim[0]: s.index,
+                            metric_type: s.values
+                        })
+                        
+                        if chart_type == "Bar Chart":
+                            chart = alt.Chart(chart_data).mark_bar(
+                                cornerRadius=4,
+                                stroke='white',
+                                strokeWidth=1
+                            ).encode(
+                                x=alt.X(f'{metric_type}:Q', 
+                                       title=metric_type,
+                                       axis=alt.Axis(format='.2f')),
+                                y=alt.Y(f'{dim[0]}:N', 
+                                       sort=alt.EncodingSortField(field=metric_type, order='descending'),
+                                       title=dim[0]),
+                                color=alt.Color(f'{metric_type}:Q', 
+                                              scale=alt.Scale(scheme='viridis'),
+                                              legend=None),
+                                tooltip=[
+                                    alt.Tooltip(f'{dim[0]}:N', title=dim[0]),
+                                    alt.Tooltip(f'{metric_type}:Q', title=metric_type, format='.2f')
+                                ]
+                            ).properties(
+                                height=400,
+                                width=600
+                            )
+                        else:  # Horizontal Bar
+                            chart = alt.Chart(chart_data).mark_bar(
+                                cornerRadius=4,
+                                stroke='white',
+                                strokeWidth=1
+                            ).encode(
+                                x=alt.X(f'{metric_type}:Q', 
+                                       title=metric_type,
+                                       axis=alt.Axis(format='.2f')),
+                                y=alt.Y(f'{dim[0]}:N', 
+                                       sort=alt.EncodingSortField(field=metric_type, order='descending'),
+                                       title=dim[0]),
+                                color=alt.Color(f'{metric_type}:Q', 
+                                              scale=alt.Scale(scheme='plasma'),
+                                              legend=None),
+                                tooltip=[
+                                    alt.Tooltip(f'{dim[0]}:N', title=dim[0]),
+                                    alt.Tooltip(f'{metric_type}:Q', title=metric_type, format='.2f')
+                                ]
+                            ).properties(
+                                height=max(300, len(s) * 25),
+                                width=600
+                            )
+                        
+                        st.altair_chart(chart, use_container_width=True)
+                    
+                    elif chart_type in ["Pie Chart", "Donut Chart"]:
+                        # Create pie/donut chart
+                        chart_data = pd.DataFrame({
+                            dim[0]: s.index,
+                            metric_type: s.values
+                        })
+                        
+                        # Calculate percentages if requested
+                        if show_percentages:
+                            total = s.sum()
+                            chart_data['Percentage'] = (chart_data[metric_type] / total * 100).round(1)
+                            chart_data['Label'] = chart_data[dim[0]] + ' (' + chart_data['Percentage'].astype(str) + '%)'
+                        else:
+                            chart_data['Label'] = chart_data[dim[0]]
+                        
+                        if chart_type == "Pie Chart":
+                            chart = alt.Chart(chart_data).mark_arc(
+                                innerRadius=0,
+                                outerRadius=150,
+                                stroke='white',
+                                strokeWidth=2
+                            ).encode(
+                                theta=alt.Theta(f'{metric_type}:Q'),
+                                color=alt.Color(f'{dim[0]}:N', 
+                                              scale=alt.Scale(scheme='set3')),
+                                tooltip=[
+                                    alt.Tooltip(f'{dim[0]}:N', title=dim[0]),
+                                    alt.Tooltip(f'{metric_type}:Q', title=metric_type, format='.2f')
+                                ]
+                            ).properties(
+                                width=400,
+                                height=400
+                            )
+                        else:  # Donut Chart
+                            chart = alt.Chart(chart_data).mark_arc(
+                                innerRadius=60,
+                                outerRadius=150,
+                                stroke='white',
+                                strokeWidth=2
+                            ).encode(
+                                theta=alt.Theta(f'{metric_type}:Q'),
+                                color=alt.Color(f'{dim[0]}:N', 
+                                              scale=alt.Scale(scheme='set3')),
+                                tooltip=[
+                                    alt.Tooltip(f'{dim[0]}:N', title=dim[0]),
+                                    alt.Tooltip(f'{metric_type}:Q', title=metric_type, format='.2f')
+                                ]
+                            ).properties(
+                                width=400,
+                                height=400
+                            )
+                        
+                        # Add text labels
+                        text = alt.Chart(chart_data).mark_text(
+                            align='center',
+                            baseline='middle',
+                            fontSize=12,
+                            fontWeight='bold'
+                        ).encode(
+                            text=alt.Text('Label:N'),
+                            color=alt.value('white')
+                        )
+                        
+                        final_chart = (chart + text).resolve_scale(color='independent')
+                        st.altair_chart(final_chart, use_container_width=True)
+                    
+                    elif chart_type == "Line Chart":
+                        # Create line chart for trend analysis
+                        chart_data = pd.DataFrame({
+                            dim[0]: s.index,
+                            metric_type: s.values
+                        })
+                        
+                        chart = alt.Chart(chart_data).mark_line(
+                            point=True,
+                            strokeWidth=3,
+                            stroke='#1f77b4'
+                        ).encode(
+                            x=alt.X(f'{dim[0]}:N', 
+                                   title=dim[0],
+                                   axis=alt.Axis(angle=-45)),
+                            y=alt.Y(f'{metric_type}:Q', 
+                                   title=metric_type,
+                                   axis=alt.Axis(format='.2f')),
+                            tooltip=[
+                                alt.Tooltip(f'{dim[0]}:N', title=dim[0]),
+                                alt.Tooltip(f'{metric_type}:Q', title=metric_type, format='.2f')
+                            ]
+                        ).properties(
+                            height=400,
+                            width=600
+                        )
+                        
+                        st.altair_chart(chart, use_container_width=True)
+                    
+                    # Display summary statistics
+                    st.markdown("---")
+                    col7, col8, col9, col10 = st.columns(4)
+                    
+                    with col7:
+                        st.metric(
+                            "Total Items", 
+                            f"{len(s):,}",
+                            help="Number of categories shown"
+                        )
+                    
+                    with col8:
+                        total_value = s.sum() if metric_type != "Game Count" else s.sum()
+                        st.metric(
+                            "Total Value", 
+                            f"{total_value:,.2f}",
+                            help=f"Sum of all {metric_type.lower()}"
+                        )
+                    
+                    with col9:
+                        avg_value = s.mean()
+                        st.metric(
+                            "Average", 
+                            f"{avg_value:,.2f}",
+                            help=f"Average {metric_type.lower()}"
+                        )
+                    
+                    with col10:
+                        max_value = s.max()
+                        st.metric(
+                            "Highest", 
+                            f"{max_value:,.2f}",
+                            help=f"Highest {metric_type.lower()}"
+                        )
+                    
+                    # Display data table
+                    st.markdown("### 📋 Detailed Data")
+                    display_data = pd.DataFrame({
+                        'Rank': range(1, len(s) + 1),
+                        dim[0]: s.index,
+                        metric_type: s.values
+                    })
+                    
+                    if show_percentages and metric_type != "Game Count":
+                        total = s.sum()
+                        display_data['Percentage'] = (display_data[metric_type] / total * 100).round(2)
+                    
+                    st.dataframe(
+                        display_data, 
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                    
+                    # Download option
+                    csv = display_data.to_csv(index=False)
+                    st.download_button(
+                        label="📥 Download Data as CSV",
+                        data=csv,
+                        file_name=f"{dim[0].lower()}_{metric_type.lower().replace(' ', '_')}_analysis.csv",
+                        mime="text/csv"
+                    )
         else:
-            st.warning("Required columns for this plot were not found.")
+            st.warning("Required columns for this analysis were not found in the dataset.")
 
 elif page == "Predict":
     st.subheader("Predict Hit / Not Hit")
@@ -389,6 +701,9 @@ elif page == "Insights":
         sub = st.selectbox("Insight", ["Sales by Region", "Correlation Heatmap", "Feature Importance (model)"])
 
         if sub == "Sales by Region":
+            st.markdown("### 🌍 Regional Sales Analysis")
+            st.markdown("Compare sales performance across different regions")
+            
             cols_lower = {str(c).strip().lower(): c for c in df.columns}
             exclude = {"total_sales", "global_sales", "globalsales", "global"}
             region_cols = []
@@ -396,15 +711,175 @@ elif page == "Insights":
                 key = str(c).strip().lower()
                 if "sales" in key and key not in exclude and pd.api.types.is_numeric_dtype(df[c]):
                     region_cols.append(c)
+            
             if len(region_cols) >= 1:
                 agg = df[region_cols].sum(numeric_only=True).sort_values(ascending=False)
                 if not agg.empty:
-                    labels = [str(col).replace("_", " ").title() for col in agg.index]
-                    fig, ax = plt.subplots(figsize=(8, 5))
-                    sns.barplot(x=agg.values, y=labels, ax=ax, palette="crest", legend=False)
-                    ax.set_xlabel("Total Sales")
-                    ax.set_ylabel("Region")
-                    st.pyplot(fig)
+                    # Create interactive chart with Altair
+                    chart_data = pd.DataFrame({
+                        'Region': [str(col).replace("_", " ").title() for col in agg.index],
+                        'Sales': agg.values,
+                        'Percentage': (agg.values / agg.sum() * 100).round(1)
+                    })
+                    
+                    # Chart type selection
+                    col1, col2 = st.columns([1, 3])
+                    with col1:
+                        region_chart_type = st.selectbox(
+                            "Chart Type",
+                            options=["Bar Chart", "Pie Chart", "Donut Chart", "Horizontal Bar"],
+                            index=0,
+                            key="region_chart_type"
+                        )
+                    
+                    with col2:
+                        show_region_percentages = st.checkbox("Show Percentages", value=True, key="region_percentages")
+                    
+                    if region_chart_type == "Bar Chart":
+                        chart = alt.Chart(chart_data).mark_bar(
+                            cornerRadius=6,
+                            stroke='white',
+                            strokeWidth=2
+                        ).encode(
+                            x=alt.X('Sales:Q', 
+                                   title="Total Sales (Millions)",
+                                   axis=alt.Axis(format='.1f')),
+                            y=alt.Y('Region:N', 
+                                   sort='-x',
+                                   title="Region"),
+                            color=alt.Color('Sales:Q', 
+                                          scale=alt.Scale(scheme='viridis'),
+                                          legend=None),
+                            tooltip=[
+                                alt.Tooltip('Region:N', title="Region"),
+                                alt.Tooltip('Sales:Q', title="Sales (M)", format='.2f'),
+                                alt.Tooltip('Percentage:Q', title="Percentage", format='.1f')
+                            ]
+                        ).properties(
+                            height=400,
+                            width=600
+                        )
+                        st.altair_chart(chart, use_container_width=True)
+                    
+                    elif region_chart_type == "Horizontal Bar":
+                        chart = alt.Chart(chart_data).mark_bar(
+                            cornerRadius=6,
+                            stroke='white',
+                            strokeWidth=2
+                        ).encode(
+                            x=alt.X('Sales:Q', 
+                                   title="Total Sales (Millions)",
+                                   axis=alt.Axis(format='.1f')),
+                            y=alt.Y('Region:N', 
+                                   sort='-x',
+                                   title="Region"),
+                            color=alt.Color('Sales:Q', 
+                                          scale=alt.Scale(scheme='plasma'),
+                                          legend=None),
+                            tooltip=[
+                                alt.Tooltip('Region:N', title="Region"),
+                                alt.Tooltip('Sales:Q', title="Sales (M)", format='.2f'),
+                                alt.Tooltip('Percentage:Q', title="Percentage", format='.1f')
+                            ]
+                        ).properties(
+                            height=max(300, len(chart_data) * 30),
+                            width=600
+                        )
+                        st.altair_chart(chart, use_container_width=True)
+                    
+                    elif region_chart_type in ["Pie Chart", "Donut Chart"]:
+                        # Prepare labels with percentages
+                        if show_region_percentages:
+                            chart_data['Label'] = chart_data['Region'] + ' (' + chart_data['Percentage'].astype(str) + '%)'
+                        else:
+                            chart_data['Label'] = chart_data['Region']
+                        
+                        if region_chart_type == "Pie Chart":
+                            chart = alt.Chart(chart_data).mark_arc(
+                                innerRadius=0,
+                                outerRadius=150,
+                                stroke='white',
+                                strokeWidth=3
+                            ).encode(
+                                theta=alt.Theta('Sales:Q'),
+                                color=alt.Color('Region:N', 
+                                              scale=alt.Scale(scheme='set3')),
+                                tooltip=[
+                                    alt.Tooltip('Region:N', title="Region"),
+                                    alt.Tooltip('Sales:Q', title="Sales (M)", format='.2f'),
+                                    alt.Tooltip('Percentage:Q', title="Percentage", format='.1f')
+                                ]
+                            ).properties(
+                                width=500,
+                                height=500
+                            )
+                        else:  # Donut Chart
+                            chart = alt.Chart(chart_data).mark_arc(
+                                innerRadius=80,
+                                outerRadius=150,
+                                stroke='white',
+                                strokeWidth=3
+                            ).encode(
+                                theta=alt.Theta('Sales:Q'),
+                                color=alt.Color('Region:N', 
+                                              scale=alt.Scale(scheme='set3')),
+                                tooltip=[
+                                    alt.Tooltip('Region:N', title="Region"),
+                                    alt.Tooltip('Sales:Q', title="Sales (M)", format='.2f'),
+                                    alt.Tooltip('Percentage:Q', title="Percentage", format='.1f')
+                                ]
+                            ).properties(
+                                width=500,
+                                height=500
+                            )
+                        
+                        # Add text labels
+                        text = alt.Chart(chart_data).mark_text(
+                            align='center',
+                            baseline='middle',
+                            fontSize=11,
+                            fontWeight='bold'
+                        ).encode(
+                            text=alt.Text('Label:N'),
+                            color=alt.value('white')
+                        )
+                        
+                        final_chart = (chart + text).resolve_scale(color='independent')
+                        st.altair_chart(final_chart, use_container_width=True)
+                    
+                    # Summary metrics
+                    st.markdown("---")
+                    col3, col4, col5, col6 = st.columns(4)
+                    
+                    with col3:
+                        st.metric("Total Regions", f"{len(agg)}")
+                    
+                    with col4:
+                        st.metric("Total Sales", f"{agg.sum():.1f}M")
+                    
+                    with col5:
+                        st.metric("Top Region", f"{chart_data.iloc[0]['Region']}")
+                    
+                    with col6:
+                        st.metric("Top Region %", f"{chart_data.iloc[0]['Percentage']:.1f}%")
+                    
+                    # Data table
+                    st.markdown("### 📊 Regional Sales Breakdown")
+                    st.dataframe(
+                        chart_data[['Region', 'Sales', 'Percentage']], 
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                    
+                    # Download option
+                    csv = chart_data.to_csv(index=False)
+                    st.download_button(
+                        label="📥 Download Regional Data as CSV",
+                        data=csv,
+                        file_name="regional_sales_analysis.csv",
+                        mime="text/csv"
+                    )
+                    
                     st.caption(f"Using region columns: {', '.join(map(str, agg.index))}")
                 else:
                     st.info("No regional sales data to aggregate.")
@@ -412,16 +887,106 @@ elif page == "Insights":
                 st.info("No region-specific sales columns found.")
 
         elif sub == "Correlation Heatmap":
+            st.markdown("### 🔥 Correlation Analysis")
+            st.markdown("Explore relationships between numeric variables")
+            
             num_df = df.select_dtypes(include="number")
             if num_df.shape[1] >= 2:
                 corr = num_df.corr(numeric_only=True)
-                plt.figure(figsize=(10, 8))
-                sns.heatmap(corr, cmap="coolwarm", annot=False)
-                st.pyplot(plt.gcf())
+                
+                # Chart options
+                col1, col2, col3 = st.columns([1, 1, 2])
+                with col1:
+                    show_values = st.checkbox("Show Values", value=True, key="corr_values")
+                with col2:
+                    show_annotations = st.checkbox("Show Annotations", value=False, key="corr_annotations")
+                
+                # Create interactive heatmap with Altair
+                corr_data = corr.reset_index().melt(id_vars='index', var_name='Variable 2', value_name='Correlation')
+                corr_data.columns = ['Variable 1', 'Variable 2', 'Correlation']
+                
+                # Create heatmap
+                heatmap = alt.Chart(corr_data).mark_rect(
+                    stroke='white',
+                    strokeWidth=1
+                ).encode(
+                    x=alt.X('Variable 2:N', title="Variable 2"),
+                    y=alt.Y('Variable 1:N', title="Variable 1"),
+                    color=alt.Color('Correlation:Q', 
+                                  scale=alt.Scale(domain=[-1, 1], scheme='redblue'),
+                                  legend=alt.Legend(title="Correlation")),
+                    tooltip=[
+                        alt.Tooltip('Variable 1:N', title="Variable 1"),
+                        alt.Tooltip('Variable 2:N', title="Variable 2"),
+                        alt.Tooltip('Correlation:Q', title="Correlation", format='.3f')
+                    ]
+                ).properties(
+                    width=500,
+                    height=500
+                )
+                
+                # Add text annotations if requested
+                if show_annotations:
+                    text = alt.Chart(corr_data).mark_text(
+                        align='center',
+                        baseline='middle',
+                        fontSize=10,
+                        fontWeight='bold'
+                    ).encode(
+                        x=alt.X('Variable 2:N'),
+                        y=alt.Y('Variable 1:N'),
+                        text=alt.Text('Correlation:Q', format='.2f'),
+                        color=alt.condition(
+                            alt.datum.Correlation > 0.5,
+                            alt.value('white'),
+                            alt.value('black')
+                        )
+                    )
+                    final_heatmap = heatmap + text
+                else:
+                    final_heatmap = heatmap
+                
+                st.altair_chart(final_heatmap, use_container_width=True)
+                
+                # Summary statistics
+                st.markdown("---")
+                col4, col5, col6 = st.columns(3)
+                
+                with col4:
+                    strong_corr = corr_data[(corr_data['Correlation'].abs() > 0.7) & (corr_data['Correlation'] != 1.0)]
+                    st.metric("Strong Correlations (|r| > 0.7)", f"{len(strong_corr)}")
+                
+                with col5:
+                    positive_corr = corr_data[(corr_data['Correlation'] > 0.5) & (corr_data['Correlation'] != 1.0)]
+                    st.metric("Positive Correlations (r > 0.5)", f"{len(positive_corr)}")
+                
+                with col6:
+                    negative_corr = corr_data[(corr_data['Correlation'] < -0.5) & (corr_data['Correlation'] != 1.0)]
+                    st.metric("Negative Correlations (r < -0.5)", f"{len(negative_corr)}")
+                
+                # Display correlation table
+                if show_values:
+                    st.markdown("### 📊 Correlation Matrix")
+                    st.dataframe(
+                        corr.round(3), 
+                        use_container_width=True
+                    )
+                
+                # Download option
+                csv = corr.to_csv()
+                st.download_button(
+                    label="📥 Download Correlation Matrix as CSV",
+                    data=csv,
+                    file_name="correlation_matrix.csv",
+                    mime="text/csv"
+                )
             else:
-                st.info("Not enough numeric columns.")
+                st.info("Not enough numeric columns for correlation analysis.")
 
         elif sub == "Feature Importance (model)":
+            st.markdown("### 🎯 Feature Importance Analysis")
+            st.markdown("Understand which features are most important for predicting game success")
+            
             if model is None:
                 st.info("Model not loaded. Train model to see feature importances.")
             else:
@@ -434,13 +999,154 @@ elif page == "Insights":
                         feat_names = pre.get_feature_names_out()
                         importances = clf.feature_importances_
                         order = importances.argsort()[::-1]
-                        topn = st.slider("Top N features", 5, 40, 20)
+                        
+                        # Controls
+                        col1, col2, col3 = st.columns([1, 1, 2])
+                        with col1:
+                            topn = st.slider("Top N features", 5, 40, 20, key="feature_topn")
+                        with col2:
+                            chart_type = st.selectbox(
+                                "Chart Type",
+                                options=["Horizontal Bar", "Vertical Bar", "Pie Chart"],
+                                index=0,
+                                key="feature_chart_type"
+                            )
+                        with col3:
+                            show_values = st.checkbox("Show Values", value=True, key="feature_values")
+                        
                         sel = order[:topn]
-                        fig, ax = plt.subplots(figsize=(8, min(10, 0.4 * topn + 2)))
-                        sns.barplot(x=importances[sel], y=feat_names[sel], ax=ax, palette="mako", legend=False)
-                        ax.set_xlabel("Importance")
-                        ax.set_ylabel("Feature")
-                        st.pyplot(fig)
+                        
+                        # Prepare data
+                        feature_data = pd.DataFrame({
+                            'Feature': feat_names[sel],
+                            'Importance': importances[sel],
+                            'Percentage': (importances[sel] / importances[sel].sum() * 100).round(2)
+                        })
+                        
+                        if chart_type == "Horizontal Bar":
+                            chart = alt.Chart(feature_data).mark_bar(
+                                cornerRadius=4,
+                                stroke='white',
+                                strokeWidth=1
+                            ).encode(
+                                x=alt.X('Importance:Q', 
+                                       title="Feature Importance",
+                                       axis=alt.Axis(format='.3f')),
+                                y=alt.Y('Feature:N', 
+                                       sort='-x',
+                                       title="Feature"),
+                                color=alt.Color('Importance:Q', 
+                                              scale=alt.Scale(scheme='viridis'),
+                                              legend=None),
+                                tooltip=[
+                                    alt.Tooltip('Feature:N', title="Feature"),
+                                    alt.Tooltip('Importance:Q', title="Importance", format='.4f'),
+                                    alt.Tooltip('Percentage:Q', title="Percentage", format='.1f')
+                                ]
+                            ).properties(
+                                height=max(300, len(feature_data) * 25),
+                                width=600
+                            )
+                            st.altair_chart(chart, use_container_width=True)
+                        
+                        elif chart_type == "Vertical Bar":
+                            chart = alt.Chart(feature_data).mark_bar(
+                                cornerRadius=4,
+                                stroke='white',
+                                strokeWidth=1
+                            ).encode(
+                                x=alt.X('Feature:N', 
+                                       sort='-y',
+                                       title="Feature",
+                                       axis=alt.Axis(angle=-45)),
+                                y=alt.Y('Importance:Q', 
+                                       title="Feature Importance",
+                                       axis=alt.Axis(format='.3f')),
+                                color=alt.Color('Importance:Q', 
+                                              scale=alt.Scale(scheme='plasma'),
+                                              legend=None),
+                                tooltip=[
+                                    alt.Tooltip('Feature:N', title="Feature"),
+                                    alt.Tooltip('Importance:Q', title="Importance", format='.4f'),
+                                    alt.Tooltip('Percentage:Q', title="Percentage", format='.1f')
+                                ]
+                            ).properties(
+                                height=400,
+                                width=600
+                            )
+                            st.altair_chart(chart, use_container_width=True)
+                        
+                        elif chart_type == "Pie Chart":
+                            # Prepare labels
+                            if show_values:
+                                feature_data['Label'] = feature_data['Feature'] + ' (' + feature_data['Percentage'].astype(str) + '%)'
+                            else:
+                                feature_data['Label'] = feature_data['Feature']
+                            
+                            chart = alt.Chart(feature_data).mark_arc(
+                                innerRadius=0,
+                                outerRadius=150,
+                                stroke='white',
+                                strokeWidth=2
+                            ).encode(
+                                theta=alt.Theta('Importance:Q'),
+                                color=alt.Color('Feature:N', 
+                                              scale=alt.Scale(scheme='set3')),
+                                tooltip=[
+                                    alt.Tooltip('Feature:N', title="Feature"),
+                                    alt.Tooltip('Importance:Q', title="Importance", format='.4f'),
+                                    alt.Tooltip('Percentage:Q', title="Percentage", format='.1f')
+                                ]
+                            ).properties(
+                                width=500,
+                                height=500
+                            )
+                            
+                            # Add text labels
+                            text = alt.Chart(feature_data).mark_text(
+                                align='center',
+                                baseline='middle',
+                                fontSize=10,
+                                fontWeight='bold'
+                            ).encode(
+                                text=alt.Text('Label:N'),
+                                color=alt.value('white')
+                            )
+                            
+                            final_chart = (chart + text).resolve_scale(color='independent')
+                            st.altair_chart(final_chart, use_container_width=True)
+                        
+                        # Summary statistics
+                        st.markdown("---")
+                        col4, col5, col6 = st.columns(3)
+                        
+                        with col4:
+                            st.metric("Total Features", f"{len(feature_data)}")
+                        
+                        with col5:
+                            top_feature = feature_data.iloc[0]
+                            st.metric("Top Feature", f"{top_feature['Feature']}")
+                        
+                        with col6:
+                            st.metric("Top Feature %", f"{top_feature['Percentage']:.1f}%")
+                        
+                        # Feature importance table
+                        if show_values:
+                            st.markdown("### 📊 Feature Importance Details")
+                            st.dataframe(
+                                feature_data[['Feature', 'Importance', 'Percentage']], 
+                                use_container_width=True,
+                                hide_index=True
+                            )
+                        
+                        # Download option
+                        csv = feature_data.to_csv(index=False)
+                        st.download_button(
+                            label="📥 Download Feature Importance as CSV",
+                            data=csv,
+                            file_name="feature_importance_analysis.csv",
+                            mime="text/csv"
+                        )
                 except Exception as e:
                     st.error(f"Failed to compute feature importances: {e}")
 
