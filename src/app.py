@@ -135,8 +135,8 @@ def _ensure_total_sales(df: pd.DataFrame) -> pd.DataFrame:
 with st.sidebar:
     st.header("Navigation")
     if 'page' not in st.session_state:
-        st.session_state.page = "Overview"
-    for label in ["Overview", "Explore", "Predict", "Insights", "Developer Dashboard"]:
+        st.session_state.page = "Explore"
+    for label in ["Explore", "Predict", "Insights", "Developer Dashboard"]:
         st.button(label, use_container_width=True, key=f"nav_{label.replace(' ', '_')}", disabled=(st.session_state.page == label), help=f"Go to {label}")
         if st.session_state.get(f"nav_{label.replace(' ', '_')}"):
             st.session_state.page = label
@@ -187,52 +187,7 @@ else:
     genre_col = console_col = publisher_col = developer_col = total_col = None
 
 
-if page == "Overview":
-    st.subheader("Overview")
-    if df is None or df.empty:
-        st.info("Dataset not loaded. Place vg_sales_2024.csv under data/ or data/raw/.")
-    else:
-        df_proc = _ensure_release_year(_ensure_total_sales(df))
-        df_proc = df_proc.drop_duplicates()
-        if total_col in df_proc.columns:
-            pre_count = int(df_proc[total_col].notna().sum())
-        else:
-            pre_count = len(df_proc)
-
-        hit_col = _resolve_column(df, ["hit", "is_hit", "label"])
-        hit_rate_val = None
-        if hit_col and hit_col in df.columns:
-            vals = pd.to_numeric(df[hit_col], errors='coerce')
-            if vals.notna().any():
-                hit_rate_val = float(vals.mean())
-        if hit_rate_val is None and total_col in df.columns:
-            thresh = 1.0
-            vals = pd.to_numeric(df[total_col], errors='coerce')
-            mask = vals >= thresh
-            if mask.notna().any():
-                hit_rate_val = float(mask.mean())
-
-        c1, c2, c3, c4 = st.columns(4)
-        with c1: st.metric("Rows", f"{len(df):,}")
-        with c2: st.metric("Rows (preprocessed)", f"{pre_count:,}")
-        with c3: st.metric("Columns", f"{len(df.columns)}")
-        with c4: st.metric("Hit Rate", f"{hit_rate_val:.2%}" if hit_rate_val is not None else "—")
-
-        st.write("Preview")
-        st.dataframe(df.head(20), use_container_width=True)
-
-        st.write("Edit and Save (optional)")
-        edited = st.data_editor(df.head(200), use_container_width=True, num_rows="dynamic")
-        if st.button("Save edited sample to data/processed/edited.csv"):
-            out_path = project_root / 'data' / 'processed' / 'edited.csv'
-            try:
-                out_path.parent.mkdir(parents=True, exist_ok=True)
-                edited.to_csv(out_path, index=False)
-                st.success(f"Saved edited sample to {out_path}")
-            except Exception as e:
-                st.error(f"Failed to save: {e}")
-
-elif page == "Explore":
+if page == "Explore":
     st.subheader("Explore Sales")
     if df is None or df.empty:
         st.info("Dataset not loaded.")
