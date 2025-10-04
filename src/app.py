@@ -27,6 +27,8 @@ def load_data(csv_path: Path) -> pd.DataFrame:
 
 project_root = Path(__file__).resolve().parents[1]
 model_path = project_root / 'models' / 'best_model.joblib'
+regressor_path = project_root / 'models' / 'best_regressor.joblib'
+
 # Prefer data/vg_sales_2024.csv, fallback to data/raw/vg_sales_2024.csv
 data_path = project_root / 'data' / 'vg_sales_2024.csv'
 if not data_path.exists():
@@ -37,12 +39,22 @@ if model_path.exists():
     try:
         model = load_model(model_path)
     except Exception as e:
-        st.error(f"Failed to load model: {e}")
+        st.error(f"Failed to load classification model: {e}")
 else:
-    st.warning("Model file not found. Train and save a model to 'models/best_model.joblib' first (run src/train.py).")
+    st.warning("Classification model file not found. Train and save a model to 'models/best_model.joblib' first (run src/train.py).")
 
 if model is not None and not hasattr(model, 'predict_proba'):
     st.info("Loaded model does not expose predict_proba; probability shown may be based on decision function or class label.")
+
+# Load regression model (optional)
+regressor = None
+if regressor_path.exists():
+    try:
+        regressor = load_model(regressor_path)
+    except Exception as e:
+        st.error(f"Failed to load regression model: {e}")
+else:
+    st.info("Regression model not found. Run src/train_regression.py to predict total sales.")
 
 df = None
 if data_path.exists():
@@ -173,6 +185,24 @@ def predict_hit(model, genre: str, console: str, publisher: str, developer: str,
         proba = float(pred_raw)
     pred = int(proba >= 0.5)
     return pred, float(proba)
+
+
+def predict_sales(regressor, genre: str, console: str, publisher: str, developer: str, critic_score: float, release_year: int) -> float:
+    """Predict total_sales using regression model."""
+    if regressor is None:
+        raise RuntimeError("Regressor is not loaded.")
+    X = pd.DataFrame([
+        {
+            'genre': _normalize_text(genre if genre != 'Unknown' else None),
+            'console': _normalize_text(console if console != 'Unknown' else None),
+            'publisher': _normalize_text(publisher if publisher != 'Unknown' else None),
+            'developer': _normalize_text(developer if developer != 'Unknown' else None),
+            'critic_score': float(max(0.0, min(10.0, critic_score))),
+            'release_year': int(release_year),
+        }
+    ])
+    predicted_sales = regressor.predict(X)[0]
+    return max(0.0, float(predicted_sales))  # Ensure non-negative
 
 
 # Shared: ensure total_sales and resolved column names
@@ -600,12 +630,30 @@ elif page == "Predict":
         publisher = st.selectbox("Publisher", options=publisher_options, index=0)
         developer = st.selectbox("Developer", options=developer_options, index=0)
         critic_score = st.number_input("Critic Score (0-10)", min_value=0.0, max_value=10.0, value=7.5, step=0.1)
-        if st.button("Predict Hit"):
+        
+        if st.button("Predict", type="primary"):
             try:
-                pred, proba = predict_hit(model, genre, console, publisher, developer, critic_score, default_release_year)
-                label = "Hit" if pred == 1 else "Not Hit"
-                st.metric("Prediction", label, delta=f"P(Hit) = {proba:.2%}")
-                st.progress(min(max(proba, 0.0), 1.0), text=f"Probability of Hit: {proba:.2%}")
+                # Classification prediction
+                if model is not None:
+                    pred, proba = predict_hit(model, genre, console, publisher, developer, critic_score, default_release_year)
+                    label = "Hit" if pred == 1 else "Not Hit"
+                    st.markdown("#### Hit Classification")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Prediction", label)
+                    with col2:
+                        st.metric("Probability", f"{proba:.2%}")
+                    st.progress(min(max(proba, 0.0), 1.0), text=f"P(Hit) = {proba:.2%}")
+                
+                # Regression prediction
+                if regressor is not None:
+                    predicted_sales = predict_sales(regressor, genre, console, publisher, developer, critic_score, default_release_year)
+                    st.markdown("#### Total Sales Prediction")
+                    st.metric("Predicted Total Sales", f"{predicted_sales:.2f}M units")
+                    st.caption("Based on regression model trained on historical sales data")
+                else:
+                    st.info("💡 Run `src/train_regression.py` to get total sales predictions")
+                    
             except Exception as e:
                 st.error(str(e))
 
