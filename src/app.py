@@ -27,6 +27,8 @@ def load_data(csv_path: Path) -> pd.DataFrame:
 
 project_root = Path(__file__).resolve().parents[1]
 model_path = project_root / 'models' / 'best_model.joblib'
+regressor_path = project_root / 'models' / 'best_regressor.joblib'
+
 # Prefer data/vg_sales_2024.csv, fallback to data/raw/vg_sales_2024.csv
 data_path = project_root / 'data' / 'vg_sales_2024.csv'
 if not data_path.exists():
@@ -37,12 +39,22 @@ if model_path.exists():
     try:
         model = load_model(model_path)
     except Exception as e:
-        st.error(f"Failed to load model: {e}")
+        st.error(f"Failed to load classification model: {e}")
 else:
-    st.warning("Model file not found. Train and save a model to 'models/best_model.joblib' first (run src/train.py).")
+    st.warning("Classification model file not found. Train and save a model to 'models/best_model.joblib' first (run src/train.py).")
 
 if model is not None and not hasattr(model, 'predict_proba'):
     st.info("Loaded model does not expose predict_proba; probability shown may be based on decision function or class label.")
+
+# Load regression model (optional)
+regressor = None
+if regressor_path.exists():
+    try:
+        regressor = load_model(regressor_path)
+    except Exception as e:
+        st.error(f"Failed to load regression model: {e}")
+else:
+    st.info("Regression model not found. Run src/train_regression.py to predict total sales.")
 
 df = None
 if data_path.exists():
@@ -135,8 +147,8 @@ def _ensure_total_sales(df: pd.DataFrame) -> pd.DataFrame:
 with st.sidebar:
     st.header("Navigation")
     if 'page' not in st.session_state:
-        st.session_state.page = "Explore"
-    for label in ["Explore", "Predict", "Insights", "Developer Dashboard"]:
+        st.session_state.page = "Overview"
+    for label in ["Overview", "Explore", "Predict", "Insights", "Developer Dashboard"]:
         st.button(label, use_container_width=True, key=f"nav_{label.replace(' ', '_')}", disabled=(st.session_state.page == label), help=f"Go to {label}")
         if st.session_state.get(f"nav_{label.replace(' ', '_')}"):
             st.session_state.page = label
@@ -175,6 +187,24 @@ def predict_hit(model, genre: str, console: str, publisher: str, developer: str,
     return pred, float(proba)
 
 
+def predict_sales(regressor, genre: str, console: str, publisher: str, developer: str, critic_score: float, release_year: int) -> float:
+    """Predict total_sales using regression model."""
+    if regressor is None:
+        raise RuntimeError("Regressor is not loaded.")
+    X = pd.DataFrame([
+        {
+            'genre': _normalize_text(genre if genre != 'Unknown' else None),
+            'console': _normalize_text(console if console != 'Unknown' else None),
+            'publisher': _normalize_text(publisher if publisher != 'Unknown' else None),
+            'developer': _normalize_text(developer if developer != 'Unknown' else None),
+            'critic_score': float(max(0.0, min(10.0, critic_score))),
+            'release_year': int(release_year),
+        }
+    ])
+    predicted_sales = regressor.predict(X)[0]
+    return max(0.0, float(predicted_sales))  # Ensure non-negative
+
+
 # Shared: ensure total_sales and resolved column names
 if df is not None and not df.empty:
     df = _ensure_total_sales(df)
@@ -187,10 +217,6 @@ else:
     genre_col = console_col = publisher_col = developer_col = total_col = None
 
 
-<<<<<<< HEAD
-if page == "Explore":
-    st.subheader("Explore Sales")
-=======
 if page == "Overview":
     st.subheader("Overview")
     if df is None or df.empty:
@@ -240,12 +266,9 @@ elif page == "Explore":
     st.subheader("🎯 Sales Analytics Dashboard")
     st.markdown("Explore video game sales data with interactive visualizations and insights")
     
->>>>>>> main
     if df is None or df.empty:
         st.info("Dataset not loaded.")
     else:
-        dim = st.selectbox("Group by", options=[("Genre", genre_col), ("Console", console_col), ("Publisher", publisher_col)], index=0, format_func=lambda x: x[0])
-        topn = st.slider("Top N", min_value=5, max_value=30, value=10, step=1)
         # Create a more comprehensive explore interface
         col1, col2, col3 = st.columns([2, 1, 1])
         
@@ -320,12 +343,6 @@ elif page == "Explore":
         
         dim_col = dim[1]
         if dim_col in df.columns and total_col in df.columns:
-            s = df.groupby(dim_col, dropna=False)[total_col].sum().sort_values(ascending=False).head(topn)
-            fig, ax = plt.subplots(figsize=(10, 5))
-            sns.barplot(x=s.values, y=s.index, ax=ax, palette="viridis", legend=False)
-            ax.set_xlabel("Total Sales")
-            ax.set_ylabel(dim[0])
-            st.pyplot(fig)
             # Apply filters
             df_filtered = df.copy()
             
@@ -573,7 +590,6 @@ elif page == "Explore":
                         mime="text/csv"
                     )
         else:
-            st.warning("Required columns for this plot were not found.")
             st.warning("Required columns for this analysis were not found in the dataset.")
 
 elif page == "Predict":
@@ -599,8 +615,137 @@ elif page == "Predict":
     if not developer_options:
         developer_options = ["nintendo", "ea", "ubisoft", "fromsoftware", "capcom", "square enix"]
 
+    # Determine a default release year (median from dataset) to use internally
+    if df is not None and 'release_year' in df.columns:
+        _ry = pd.to_numeric(df['release_year'], errors='coerce')
+        default_release_year = int(_ry.median()) if _ry.notna().any() else 2015
+    else:
+        default_release_year = 2015
 
-@@ -344,228 +706,622 @@
+    ci1, ci2 = st.columns([1, 2])
+    with ci1:
+        st.markdown("### Prediction Inputs")
+        genre = st.selectbox("Genre", options=genre_options, index=0)
+        console = st.selectbox("Console/Platform", options=console_options, index=0)
+        publisher = st.selectbox("Publisher", options=publisher_options, index=0)
+        developer = st.selectbox("Developer", options=developer_options, index=0)
+        critic_score = st.number_input("Critic Score (0-10)", min_value=0.0, max_value=10.0, value=7.5, step=0.1)
+        
+        if st.button("Predict", type="primary"):
+            try:
+                # Classification prediction
+                if model is not None:
+                    pred, proba = predict_hit(model, genre, console, publisher, developer, critic_score, default_release_year)
+                    label = "Hit" if pred == 1 else "Not Hit"
+                    st.markdown("#### Hit Classification")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Prediction", label)
+                    with col2:
+                        st.metric("Probability", f"{proba:.2%}")
+                    st.progress(min(max(proba, 0.0), 1.0), text=f"P(Hit) = {proba:.2%}")
+                
+                # Regression prediction
+                if regressor is not None:
+                    predicted_sales = predict_sales(regressor, genre, console, publisher, developer, critic_score, default_release_year)
+                    st.markdown("#### Total Sales Prediction")
+                    st.metric("Predicted Total Sales", f"{predicted_sales:.2f}M units")
+                    st.caption("Based on regression model trained on historical sales data")
+                else:
+                    st.info("💡 Run `src/train_regression.py` to get total sales predictions")
+                    
+            except Exception as e:
+                st.error(str(e))
+
+    with ci2:
+        st.markdown("### Batch Prediction")
+        template = pd.DataFrame([
+            {"genre": genre_options[0], "console": console_options[0], "publisher": publisher_options[0], "developer": developer_options[0], "critic_score": 7.5}
+        ])
+        batch_df = st.data_editor(template, use_container_width=True, num_rows="dynamic")
+        if st.button("Predict for all rows"):
+            try:
+                if model is None:
+                    raise RuntimeError("Model is not loaded. Train model first.")
+                # Apply same normalization as training
+                for col in ['genre', 'console', 'publisher', 'developer']:
+                    if col in batch_df.columns:
+                        batch_df[col] = batch_df[col].astype('string').str.strip().str.lower()
+                if 'critic_score' in batch_df.columns:
+                    batch_df['critic_score'] = pd.to_numeric(batch_df['critic_score'], errors='coerce').clip(0, 10)
+                # Ensure release_year exists (use dataset median if missing)
+                if 'release_year' not in batch_df.columns:
+                    batch_df['release_year'] = default_release_year
+                else:
+                    batch_df['release_year'] = pd.to_numeric(batch_df['release_year'], errors='coerce').fillna(default_release_year).astype(int)
+
+                preds = model.predict_proba(batch_df)[:, 1] if hasattr(model, 'predict_proba') else model.predict(batch_df).astype(float)
+                labels = (preds >= 0.5).astype(int)
+                out = batch_df.copy()
+                out["P(Hit)"] = preds
+                out["Pred"] = labels
+                st.dataframe(out, use_container_width=True)
+            except Exception as e:
+                st.error(f"Batch prediction failed: {e}")
+
+    st.divider()
+    st.markdown("### Predict Years to Hit (avg yearly sales)")
+    st.caption("Estimate years needed to reach Hit based on the average yearly sales of similar games. Assumes Hit threshold = 1.0 and starting sales = 0.")
+
+    genre_sel = st.selectbox("Genre (filter)", options=["Any"] + genre_options, index=0)
+    console_sel = st.selectbox("Console (filter)", options=["Any"] + console_options, index=0)
+    publisher_sel = st.selectbox("Publisher (filter)", options=["Any"] + publisher_options, index=0)
+    developer_sel = st.selectbox("Developer (filter)", options=["Any"] + developer_options, index=0)
+
+    if st.button("Estimate years to hit (avg yearly sales)"):
+        try:
+            if df is None or df.empty:
+                st.info("Dataset not loaded.")
+            else:
+                df_rate = _ensure_release_year(_ensure_total_sales(df.copy()))
+                if 'release_year' not in df_rate.columns or total_col not in df_rate.columns:
+                    st.warning("Required columns not available to compute average yearly sales.")
+                else:
+                    sub = df_rate.copy()
+                    if genre_sel != "Any" and genre_col in sub.columns:
+                        sub = sub[sub[genre_col] == genre_sel]
+                    if console_sel != "Any" and console_col in sub.columns:
+                        sub = sub[sub[console_col] == console_sel]
+                    if publisher_sel != "Any" and publisher_col in sub.columns:
+                        sub = sub[sub[publisher_col] == publisher_sel]
+                    if developer_sel != "Any" and developer_col in sub.columns:
+                        sub = sub[sub[developer_col] == developer_sel]
+
+                    if sub.empty:
+                        st.info("No matching rows for the selected filters.")
+                    else:
+                        CURRENT_YEAR = 2025
+                        vals_year = pd.to_numeric(sub['release_year'], errors='coerce')
+                        years_elapsed = (CURRENT_YEAR - vals_year)
+                        years_elapsed = years_elapsed.where(years_elapsed >= 1, 1)
+                        vals_sales = pd.to_numeric(sub[total_col], errors='coerce')
+                        rate = vals_sales / years_elapsed
+                        avg_rate = float(rate.mean(skipna=True)) if rate.notna().any() else float('nan')
+
+                        if not pd.notna(avg_rate) or avg_rate <= 0:
+                            st.info("Cannot estimate: average yearly sales is not available or non-positive for the selected filters.")
+                        else:
+                            hit_threshold = 1.0
+                            current_sales = 0.0
+                            years_needed = math.ceil(max(0.0, hit_threshold - current_sales) / avg_rate)
+                            cya, cyb, cyc = st.columns(3)
+                            with cya: st.metric("Avg yearly sales", f"{avg_rate:.3f}")
+                            with cyb: st.metric("Assumed Hit threshold", f"{hit_threshold:.1f}")
+                            with cyc: st.metric("Estimated years to Hit", f"{years_needed}")
+                            st.caption(f"Based on {len(sub)} matching games.")
+        except Exception as e:
+            st.error(f"Failed to estimate years to hit: {e}")
+
+elif page == "Insights":
+    st.subheader("Insights")
+    if df is None or df.empty:
+        st.info("Dataset not loaded.")
+    else:
         sub = st.selectbox("Insight", ["Sales by Region", "Correlation Heatmap", "Feature Importance (model)"])
 
         if sub == "Sales by Region":
@@ -618,12 +763,6 @@ elif page == "Predict":
             if len(region_cols) >= 1:
                 agg = df[region_cols].sum(numeric_only=True).sort_values(ascending=False)
                 if not agg.empty:
-                    labels = [str(col).replace("_", " ").title() for col in agg.index]
-                    fig, ax = plt.subplots(figsize=(8, 5))
-                    sns.barplot(x=agg.values, y=labels, ax=ax, palette="crest", legend=False)
-                    ax.set_xlabel("Total Sales")
-                    ax.set_ylabel("Region")
-                    st.pyplot(fig)
                     # Create interactive chart with Altair
                     chart_data = pd.DataFrame({
                         'Region': [str(col).replace("_", " ").title() for col in agg.index],
@@ -802,9 +941,6 @@ elif page == "Predict":
             num_df = df.select_dtypes(include="number")
             if num_df.shape[1] >= 2:
                 corr = num_df.corr(numeric_only=True)
-                plt.figure(figsize=(10, 8))
-                sns.heatmap(corr, cmap="coolwarm", annot=False)
-                st.pyplot(plt.gcf())
                 
                 # Chart options
                 col1, col2, col3 = st.columns([1, 1, 2])
@@ -893,7 +1029,6 @@ elif page == "Predict":
                     mime="text/csv"
                 )
             else:
-                st.info("Not enough numeric columns.")
                 st.info("Not enough numeric columns for correlation analysis.")
 
         elif sub == "Feature Importance (model)":
@@ -912,7 +1047,6 @@ elif page == "Predict":
                         feat_names = pre.get_feature_names_out()
                         importances = clf.feature_importances_
                         order = importances.argsort()[::-1]
-                        topn = st.slider("Top N features", 5, 40, 20)
                         
                         # Controls
                         col1, col2, col3 = st.columns([1, 1, 2])
@@ -929,11 +1063,6 @@ elif page == "Predict":
                             show_values = st.checkbox("Show Values", value=True, key="feature_values")
                         
                         sel = order[:topn]
-                        fig, ax = plt.subplots(figsize=(8, min(10, 0.4 * topn + 2)))
-                        sns.barplot(x=importances[sel], y=feat_names[sel], ax=ax, palette="mako", legend=False)
-                        ax.set_xlabel("Importance")
-                        ax.set_ylabel("Feature")
-                        st.pyplot(fig)
                         
                         # Prepare data
                         feature_data = pd.DataFrame({
