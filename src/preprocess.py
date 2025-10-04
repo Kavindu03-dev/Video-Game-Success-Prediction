@@ -103,3 +103,47 @@ def build_preprocessor(df: pd.DataFrame) -> tuple[ColumnTransformer, pd.DataFram
     )
 
     return preprocessor, X, y
+
+
+def build_preprocessor_regression(df: pd.DataFrame) -> tuple[ColumnTransformer, pd.DataFrame, pd.Series]:
+    """Build preprocessor for regression task (predicting total_sales directly)."""
+    df = build_features(df)
+    
+    # Drop rows with missing total_sales (target variable)
+    if 'total_sales' in df.columns:
+        df = df.dropna(subset=['total_sales'])
+    
+    categorical_features = ['console', 'genre', 'publisher', 'developer']
+    numeric_features = ['critic_score', 'release_year']
+
+    # Coerce expected dtypes
+    for col in categorical_features:
+        if col in df.columns:
+            df[col] = df[col].astype('object').replace({pd.NA: np.nan})
+    for col in numeric_features:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+
+    feature_cols = categorical_features + numeric_features
+
+    X = df[feature_cols]
+    y = df['total_sales']
+
+    numeric_transformer = Pipeline(steps=[
+        ('imputer', SimpleImputer(strategy='median')),
+        ('scaler', StandardScaler(with_mean=False))
+    ])
+
+    categorical_transformer = Pipeline(steps=[
+        ('imputer', SimpleImputer(strategy='most_frequent')),
+        ('onehot', OneHotEncoder(handle_unknown='ignore'))
+    ])
+
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ('num', numeric_transformer, numeric_features),
+            ('cat', categorical_transformer, categorical_features)
+        ]
+    )
+
+    return preprocessor, X, y
