@@ -16,7 +16,7 @@ st.markdown(
     """
     <div style='text-align:center; padding: 0.75rem 0 0.25rem;'>
         <h1 style='margin-bottom:0.4rem; font-size:2.55rem;'>🎮 Video Game Success Prediction</h1>
-        <p style='font-size:1.05rem; color:#5f6368; margin:0;'>Predict hits, analyze trends, and batch forecast sales — fast and simple.</p>
+            <p style='font-size:1.05rem; color:#5f6368; margin:0;'>Effortlessly predict which video games will become hits, explore market trends with interactive analytics, and forecast sales for multiple titles at once—all in a streamlined, user-friendly app.</p>
     </div>
     <hr style='margin-top:1.1rem; margin-bottom:0.8rem; border: none; border-top: 1px solid #e0e0e0;' />
     """,
