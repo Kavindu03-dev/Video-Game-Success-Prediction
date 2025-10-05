@@ -154,6 +154,24 @@ def _ensure_total_sales(df: pd.DataFrame) -> pd.DataFrame:
 
 
 with st.sidebar:
+    # Inject custom CSS for gradient buttons
+    st.markdown(
+        """
+        <style>
+        section[data-testid="stSidebar"] button {
+            background: linear-gradient(90deg, #6a11cb 0%, #2575fc 100%) !important;
+            color: #fff !important;
+            border: none !important;
+            box-shadow: 0 2px 8px rgba(106,17,203,0.08);
+        }
+        section[data-testid="stSidebar"] button:disabled {
+            background: #e0e0e0 !important;
+            color: #888 !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
     # Add logo at the top of sidebar
     logo_path = project_root / 'logo.png'
     if logo_path.exists():
