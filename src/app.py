@@ -154,6 +154,12 @@ def _ensure_total_sales(df: pd.DataFrame) -> pd.DataFrame:
 
 
 with st.sidebar:
+    # Add logo at the top of sidebar
+    logo_path = project_root / 'logo.png'
+    if logo_path.exists():
+        st.image(str(logo_path), width=200)
+        st.markdown("---")
+    
     st.header("Navigation")
     if 'page' not in st.session_state:
         st.session_state.page = "Explore"
