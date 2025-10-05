@@ -159,14 +159,14 @@ with st.sidebar:
         """
         <style>
         section[data-testid="stSidebar"] button {
-            background: linear-gradient(90deg, #6a11cb 0%, #2575fc 100%) !important;
+            background: linear-gradient(90deg, #000000 0%, #1a1a2e 60%, #232526 100%) !important;
             color: #fff !important;
             border: none !important;
-            box-shadow: 0 2px 8px rgba(106,17,203,0.08);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
         }
         section[data-testid="stSidebar"] button:disabled {
-            background: #e0e0e0 !important;
-            color: #888 !important;
+            background: #222 !important;
+            color: #666 !important;
         }
         </style>
         """,
