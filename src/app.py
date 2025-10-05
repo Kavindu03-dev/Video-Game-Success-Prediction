@@ -168,6 +168,20 @@ with st.sidebar:
             background: #222 !important;
             color: #666 !important;
         }
+
+        /* Custom selectbox (dropdown) styling */
+        div[data-testid="stSelectbox"] > div {
+            background: #181818 !important;
+            border-radius: 8px !important;
+            color: #e0e0e0 !important;
+            border: 1px solid #232526 !important;
+        }
+        div[data-testid="stSelectbox"] label {
+            color: #b0b0b0 !important;
+        }
+        div[data-testid="stSelectbox"] svg {
+            color: #6a11cb !important;
+        }
         </style>
         """,
         unsafe_allow_html=True
