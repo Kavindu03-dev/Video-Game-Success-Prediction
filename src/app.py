@@ -1286,7 +1286,7 @@ elif page == "Developer Dashboard":
         with c3:
             agg_fn = st.selectbox("Aggregation", options=['sum', 'mean', 'median', 'count'])
         with c4:
-            chart_type = st.selectbox("Chart Type", options=['bar', 'line', 'scatter', 'area'], index=0)
+            chart_type = st.selectbox("Chart Type", options=['bar', 'line', 'area'], index=0)
 
         f1, f2, f3, f4 = st.columns(4)
         with f1:
@@ -1345,16 +1345,7 @@ elif page == "Developer Dashboard":
                     y=alt.Y(f"{y_axis}:Q", title=y_axis.replace('_', ' ').title()),
                     tooltip=list(s.columns)
                 ).properties(height=400)
-            elif chart_type == 'scatter':
-                if len(dfx) > 1000:
-                    dfx_sample = dfx.sample(1000)
-                else:
-                    dfx_sample = dfx
-                base = alt.Chart(dfx_sample).mark_circle(size=60).encode(
-                    x=alt.X(f"{x_axis}:O" if x_axis in cats else f"{x_axis}:Q", title=x_axis.replace('_', ' ').title()),
-                    y=alt.Y(f"{y_axis}:Q", title=y_axis.replace('_', ' ').title()),
-                    tooltip=[x_axis, y_axis]
-                ).properties(height=400)
+            # Removed scatterplot chart type and implementation
             elif chart_type == 'area':
                 base = alt.Chart(s).mark_area().encode(
                     x=alt.X(f"{x_axis}:O", title=x_axis.replace('_', ' ').title()),
@@ -1374,7 +1365,7 @@ elif page == "Developer Dashboard":
             add_col1, add_col2 = st.columns([1, 3])
             with add_col1:
                 if st.button("Add Chart"):
-                    data_to_store = dfx[[x_axis, y_axis]].to_dict(orient='list') if chart_type == 'scatter' else s.to_dict(orient='list')
+                    data_to_store = s.to_dict(orient='list')
                     release_year_filter = [int(year_range[0]), int(year_range[1])] if ('year_range' in locals() and isinstance(year_range, (list, tuple))) else None
                     st.session_state.chart_specs.append({
                         'x_axis': x_axis,
