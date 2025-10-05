@@ -182,6 +182,19 @@ with st.sidebar:
         div[data-testid="stSelectbox"] svg {
             color: #6a11cb !important;
         }
+
+        /* Style for non-colored (default) Streamlit buttons */
+        button[kind="secondary"] {
+            background: #232526 !important;
+            color: #fff !important;
+            border: 1px solid #6a11cb !important;
+            box-shadow: 0 2px 8px rgba(44,62,80,0.15);
+        }
+        button[kind="secondary"]:hover {
+            background: #1a1a2e !important;
+            color: #fff !important;
+            border: 1px solid #8f94fb !important;
+        }
         </style>
         """,
         unsafe_allow_html=True
