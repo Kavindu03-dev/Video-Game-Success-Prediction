@@ -11,8 +11,17 @@ import altair as alt
 
 st.set_page_config(page_title="Video Game Success Predictor", layout="wide")
 
-st.title("🎮 Video Game Success Prediction")
-st.caption("Predict whether a game is a Hit (total_sales ≥ 1.0), explore trends, and edit data inline.")
+# Centered title & caption (replaces default st.title / st.caption)
+st.markdown(
+    """
+    <div style='text-align:center; padding: 0.75rem 0 0.25rem;'>
+        <h1 style='margin-bottom:0.4rem; font-size:2.55rem;'>🎮 Video Game Success Prediction</h1>
+        <p style='font-size:1.05rem; color:#5f6368; margin:0;'>Predict hits, analyze trends, and batch forecast sales — fast and simple.</p>
+    </div>
+    <hr style='margin-top:1.1rem; margin-bottom:0.8rem; border: none; border-top: 1px solid #e0e0e0;' />
+    """,
+    unsafe_allow_html=True
+)
 
 
 @st.cache_resource(show_spinner=False)
@@ -224,33 +233,33 @@ else:
 
 
 if page == "Explore":
-    st.subheader("🎯 Sales Analytics Dashboard")
+    st.subheader("📊 Sales Analytics Dashboard")
     st.markdown("Explore video game sales data with interactive visualizations and insights")
     
     if df is None or df.empty:
         st.info("Dataset not loaded.")
     else:
-        # Create a more comprehensive explore interface
-        col1, col2, col3 = st.columns([2, 1, 1])
-        
+        # Top control bar (removed redundant 'Sales Analysis' heading for cleaner UI)
+        col1, col2, col3 = st.columns([1, 1, 1])
+
         with col1:
-            st.markdown("### 📊 Sales Analysis")
-        
-        with col2:
             chart_type = st.selectbox(
                 "Chart Type", 
                 options=["Bar Chart", "Horizontal Bar", "Pie Chart", "Donut Chart", "Line Chart"],
                 index=0,
                 help="Choose your preferred visualization style"
             )
-        
-        with col3:
+        with col2:
             metric_type = st.selectbox(
                 "Metric", 
                 options=["Total Sales", "Average Sales", "Median Sales", "Game Count"],
                 index=0,
                 help="Select the metric to analyze"
             )
+        with col3:
+            st.markdown("<div style='text-align:right; padding-top:0.4rem; font-size:0.9rem; color:#666;'>Configure chart & metric</div>", unsafe_allow_html=True)
+
+        st.markdown("<hr style='margin:0.4rem 0 0.9rem; border:none; border-top:1px solid #e5e5e5;' />", unsafe_allow_html=True)
         
         # Main controls
         col4, col5, col6 = st.columns([2, 1, 1])
@@ -585,7 +594,8 @@ elif page == "Predict":
 
     ci1, ci2 = st.columns([1, 2])
     with ci1:
-        st.markdown("### Prediction Inputs")
+        # Removed explicit 'Prediction Inputs' title for a cleaner minimal UI
+        st.markdown("<div style='height:0.25rem'></div>", unsafe_allow_html=True)
         genre = st.selectbox("Genre", options=genre_options, index=0)
         console = st.selectbox("Console/Platform", options=console_options, index=0)
         publisher = st.selectbox("Publisher", options=publisher_options, index=0)
@@ -748,13 +758,13 @@ elif page == "Predict":
             )
 
     st.divider()
-    st.markdown("### Predict Years to Hit (avg yearly sales)")
+    st.markdown("### Predict Years to Hit")
     st.caption("Estimate years needed to reach Hit based on the average yearly sales of similar games. Assumes if game Hit 1 Million sells it will be Hit and starting sales = 0.")
 
-    genre_sel = st.selectbox("Genre (filter)", options=["Any"] + genre_options, index=0)
-    console_sel = st.selectbox("Console (filter)", options=["Any"] + console_options, index=0)
-    publisher_sel = st.selectbox("Publisher (filter)", options=["Any"] + publisher_options, index=0)
-    developer_sel = st.selectbox("Developer (filter)", options=["Any"] + developer_options, index=0)
+    genre_sel = st.selectbox("Genre ", options=["Any"] + genre_options, index=0)
+    console_sel = st.selectbox("Console ", options=["Any"] + console_options, index=0)
+    publisher_sel = st.selectbox("Publisher ", options=["Any"] + publisher_options, index=0)
+    developer_sel = st.selectbox("Developer ", options=["Any"] + developer_options, index=0)
 
     if st.button("Estimate years to hit (avg yearly sales)"):
         try:
