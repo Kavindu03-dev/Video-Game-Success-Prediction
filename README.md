@@ -32,8 +32,15 @@ python -m venv .venv; .\.venv\Scripts\Activate.ps1
 # Install dependencies
 pip install -r requirements.txt
 
-# Train
-python .\src\train.py
+# Train (both classification + regression with 5-fold CV)
+python .\src\train.py --task both --cv-folds 5
+
+# Quick train without cross-validation (faster)
+python .\src\train.py --task both --no-cv
+
+# Only classification or only regression
+python .\src\train.py --task classification
+python .\src\train.py --task regression
 
 # Run app (Streamlit)
 streamlit run .\src\app.py
@@ -41,9 +48,11 @@ streamlit run .\src\app.py
 
 ## Files
 - `data/vg_sales_2024.csv` — dataset
-- `src/train.py` — training + model selection
+- `src/train.py` — unified training (classification + regression, optional cross-validation)
 - `src/app.py` — Streamlit prediction app
-- `models/` — saved `best_model.joblib` and `metrics.json`
+- `models/` — saved models + metrics:
+   - `best_model.joblib`, `metrics.json` (classification)
+   - `best_regressor.joblib`, `regressor_metrics.json` (regression)
 
 ## Notes
 - Feel free to adjust `SUCCESS_THRESHOLD` in `src/train.py` if your rubric defines success differently.
