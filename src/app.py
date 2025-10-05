@@ -1177,7 +1177,7 @@ elif page == "Insights":
                         with col2:
                             chart_type = st.selectbox(
                                 "Chart Type",
-                                options=["Horizontal Bar", "Vertical Bar", "Pie Chart"],
+                                options=["Horizontal Bar", "Pie Chart"],
                                 index=0,
                                 key="feature_chart_type"
                             )
@@ -1219,32 +1219,7 @@ elif page == "Insights":
                             )
                             st.altair_chart(chart, use_container_width=True)
                         
-                        elif chart_type == "Vertical Bar":
-                            chart = alt.Chart(feature_data).mark_bar(
-                                cornerRadius=4,
-                                stroke='white',
-                                strokeWidth=1
-                            ).encode(
-                                x=alt.X('Feature:N', 
-                                       sort='-y',
-                                       title="Feature",
-                                       axis=alt.Axis(angle=-45)),
-                                y=alt.Y('Importance:Q', 
-                                       title="Feature Importance",
-                                       axis=alt.Axis(format='.3f')),
-                                color=alt.Color('Importance:Q', 
-                                              scale=alt.Scale(scheme='plasma'),
-                                              legend=None),
-                                tooltip=[
-                                    alt.Tooltip('Feature:N', title="Feature"),
-                                    alt.Tooltip('Importance:Q', title="Importance", format='.4f'),
-                                    alt.Tooltip('Percentage:Q', title="Percentage", format='.1f')
-                                ]
-                            ).properties(
-                                height=400,
-                                width=600
-                            )
-                            st.altair_chart(chart, use_container_width=True)
+                        # Removed Vertical Bar chart type and implementation
                         
                         elif chart_type == "Pie Chart":
                             # Prepare labels
