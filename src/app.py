@@ -296,7 +296,7 @@ if page == "Explore":
         with col1:
             chart_type = st.selectbox(
                 "Chart Type", 
-                options=["Bar Chart", "Horizontal Bar", "Pie Chart", "Donut Chart", "Line Chart"],
+                options=["Bar Chart", "Horizontal Bar", "Pie Chart", "Donut Chart"],
                 index=0,
                 help="Choose your preferred visualization style"
             )
@@ -520,34 +520,7 @@ if page == "Explore":
                         final_chart = (chart + text).resolve_scale(color='independent')
                         st.altair_chart(final_chart, use_container_width=True)
                     
-                    elif chart_type == "Line Chart":
-                        # Create line chart for trend analysis
-                        chart_data = pd.DataFrame({
-                            dim[0]: s.index,
-                            metric_type: s.values
-                        })
-                        
-                        chart = alt.Chart(chart_data).mark_line(
-                            point=True,
-                            strokeWidth=3,
-                            stroke='#1f77b4'
-                        ).encode(
-                            x=alt.X(f'{dim[0]}:N', 
-                                   title=dim[0],
-                                   axis=alt.Axis(angle=-45)),
-                            y=alt.Y(f'{metric_type}:Q', 
-                                   title=metric_type,
-                                   axis=alt.Axis(format='.2f')),
-                            tooltip=[
-                                alt.Tooltip(f'{dim[0]}:N', title=dim[0]),
-                                alt.Tooltip(f'{metric_type}:Q', title=metric_type, format='.2f')
-                            ]
-                        ).properties(
-                            height=400,
-                            width=600
-                        )
-                        
-                        st.altair_chart(chart, use_container_width=True)
+                    # Removed Line Chart option and implementation
                     
                     # Display summary statistics
                     st.markdown("---")
