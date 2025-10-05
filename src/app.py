@@ -645,43 +645,111 @@ elif page == "Predict":
                 else:
                     st.info("💡 Run `src/train_regression.py` to get total sales predictions")
                     
+                # Append this prediction into batch table automatically
+                if 'batch_rows' not in st.session_state:
+                    st.session_state.batch_rows = pd.DataFrame(columns=[
+                        'genre', 'console', 'publisher', 'developer', 'critic_score', 'release_year',
+                        'p_hit', 'label', 'predicted_sales'
+                    ])
+                new_entry = {
+                    'genre': genre,
+                    'console': console,
+                    'publisher': publisher,
+                    'developer': developer,
+                    'critic_score': critic_score,
+                    'release_year': default_release_year,
+                    'p_hit': classification_proba if classification_proba is not None else float('nan'),
+                    'label': classification_label if classification_label else None,
+                    'predicted_sales': predicted_sales if 'predicted_sales' in locals() else float('nan')
+                }
+                st.session_state.batch_rows = pd.concat([st.session_state.batch_rows, pd.DataFrame([new_entry])], ignore_index=True)
+
             except Exception as e:
                 st.error(str(e))
 
     with ci2:
         st.markdown("### Batch Prediction")
-        template = pd.DataFrame([
-            {"genre": genre_options[0], "console": console_options[0], "publisher": publisher_options[0], "developer": developer_options[0], "critic_score": 7.5}
-        ])
-        batch_df = st.data_editor(template, use_container_width=True, num_rows="dynamic")
-        if st.button("Predict for all rows"):
-            try:
-                if model is None:
-                    raise RuntimeError("Model is not loaded. Train model first.")
-                # Apply same normalization as training
-                for col in ['genre', 'console', 'publisher', 'developer']:
-                    if col in batch_df.columns:
-                        batch_df[col] = batch_df[col].astype('string').str.strip().str.lower()
-                if 'critic_score' in batch_df.columns:
-                    batch_df['critic_score'] = pd.to_numeric(batch_df['critic_score'], errors='coerce').clip(0, 10)
-                # Ensure release_year exists (use dataset median if missing)
-                if 'release_year' not in batch_df.columns:
-                    batch_df['release_year'] = default_release_year
-                else:
-                    batch_df['release_year'] = pd.to_numeric(batch_df['release_year'], errors='coerce').fillna(default_release_year).astype(int)
+        # Initialize batch storage in session state
+        if 'batch_rows' not in st.session_state:
+            st.session_state.batch_rows = pd.DataFrame(columns=[
+                'genre', 'console', 'publisher', 'developer', 'critic_score', 'release_year',
+                'p_hit', 'label', 'predicted_sales'
+            ])
 
-                preds = model.predict_proba(batch_df)[:, 1] if hasattr(model, 'predict_proba') else model.predict(batch_df).astype(float)
-                labels = (preds >= 0.5).astype(int)
-                out = batch_df.copy()
-                out["P(Hit)"] = preds
-                out["Pred"] = labels
-                st.dataframe(out, use_container_width=True)
-            except Exception as e:
-                st.error(f"Batch prediction failed: {e}")
+        def _recompute_predictions(df_in: pd.DataFrame) -> pd.DataFrame:
+            df_proc = df_in.copy()
+            if df_proc.empty:
+                return df_proc
+            # Normalize inputs
+            for col in ['genre', 'console', 'publisher', 'developer']:
+                if col in df_proc.columns:
+                    df_proc[col] = df_proc[col].astype('string').str.strip().str.lower()
+            if 'critic_score' in df_proc.columns:
+                df_proc['critic_score'] = pd.to_numeric(df_proc['critic_score'], errors='coerce').clip(0, 10)
+            if 'release_year' not in df_proc.columns:
+                df_proc['release_year'] = default_release_year
+            else:
+                df_proc['release_year'] = pd.to_numeric(df_proc['release_year'], errors='coerce').fillna(default_release_year).astype(int)
+
+            if model is not None:
+                try:
+                    preds = model.predict_proba(df_proc)[:, 1] if hasattr(model, 'predict_proba') else model.predict(df_proc).astype(float)
+                except Exception:
+                    preds = [float('nan')] * len(df_proc)
+            else:
+                preds = [float('nan')] * len(df_proc)
+            labels = [(p >= 0.5) if pd.notna(p) else False for p in preds]
+
+            # Regression predictions
+            if regressor is not None:
+                try:
+                    sales_preds = regressor.predict(df_proc)
+                except Exception:
+                    sales_preds = [float('nan')] * len(df_proc)
+            else:
+                sales_preds = [float('nan')] * len(df_proc)
+
+            df_proc['p_hit'] = preds
+            df_proc['label'] = ["Hit" if l else "Not Hit" for l in labels]
+            df_proc['predicted_sales'] = sales_preds
+            return df_proc
+
+        # Button to add current single-input selection as a new row
+        # Editable view (exclude prediction columns from editing)
+        editable_cols = ['genre', 'console', 'publisher', 'developer', 'critic_score', 'release_year']
+        col_config = {
+            'p_hit': st.column_config.NumberColumn("P(Hit)", format="%.3f", disabled=True),
+            'label': st.column_config.TextColumn("Label", disabled=True),
+            'predicted_sales': st.column_config.NumberColumn("Predicted Sales (M)", format="%.2f", disabled=True)
+        }
+        batch_editor_df = st.data_editor(
+            st.session_state.batch_rows,
+            use_container_width=True,
+            num_rows="dynamic",
+            column_config=col_config,
+            disabled=[c for c in st.session_state.batch_rows.columns if c not in editable_cols]
+        )
+
+        # Detect manual edits and recompute predictions
+        if not batch_editor_df.equals(st.session_state.batch_rows):
+            # Keep only editable columns from edited df, then recompute
+            merged = batch_editor_df[editable_cols].copy()
+            st.session_state.batch_rows = _recompute_predictions(merged)
+            # Force immediate refresh so predictions update without extra click
+            st.experimental_rerun()
+        # Download capability (always reflects current predictions in editor)
+        if not st.session_state.batch_rows.empty:
+            dl_csv = st.session_state.batch_rows.to_csv(index=False)
+            st.download_button(
+                label="Download Batch Predictions CSV",
+                data=dl_csv,
+                file_name="batch_predictions.csv",
+                mime="text/csv"
+            )
 
     st.divider()
     st.markdown("### Predict Years to Hit (avg yearly sales)")
-    st.caption("Estimate years needed to reach Hit based on the average yearly sales of similar games. Assumes Hit threshold = 1.0 and starting sales = 0.")
+    st.caption("Estimate years needed to reach Hit based on the average yearly sales of similar games. Assumes if game Hit 1 Million sells it will be Hit and starting sales = 0.")
 
     genre_sel = st.selectbox("Genre (filter)", options=["Any"] + genre_options, index=0)
     console_sel = st.selectbox("Console (filter)", options=["Any"] + console_options, index=0)
@@ -724,10 +792,12 @@ elif page == "Predict":
                             hit_threshold = 1.0
                             current_sales = 0.0
                             years_needed = math.ceil(max(0.0, hit_threshold - current_sales) / avg_rate)
-                            cya, cyb, cyc = st.columns(3)
-                            with cya: st.metric("Avg yearly sales", f"{avg_rate:.3f}")
-                            with cyb: st.metric("Assumed Hit threshold", f"{hit_threshold:.1f}")
-                            with cyc: st.metric("Estimated years to Hit", f"{years_needed}")
+                            # Show only average yearly sales and estimated years (hide assumed threshold per request)
+                            cya, cyc = st.columns(2)
+                            with cya:
+                                st.metric("Avg yearly sales", f"{avg_rate:.3f}")
+                            with cyc:
+                                st.metric("Estimated years to Hit", f"{years_needed}")
                             st.caption(f"Based on {len(sub)} matching games.")
         except Exception as e:
             st.error(f"Failed to estimate years to hit: {e}")
