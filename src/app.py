@@ -188,7 +188,11 @@ def predict_hit(model, genre: str, console: str, publisher: str, developer: str,
 
 
 def predict_sales(regressor, genre: str, console: str, publisher: str, developer: str, critic_score: float, release_year: int) -> float:
-    """Predict total_sales using regression model."""
+    """Predict total_sales using regression model.
+    
+    Returns:
+        float: predicted total sales in million units
+    """
     if regressor is None:
         raise RuntimeError("Regressor is not loaded.")
     X = pd.DataFrame([
@@ -202,7 +206,9 @@ def predict_sales(regressor, genre: str, console: str, publisher: str, developer
         }
     ])
     predicted_sales = regressor.predict(X)[0]
-    return max(0.0, float(predicted_sales))  # Ensure non-negative
+    predicted_sales = max(0.0, float(predicted_sales))  # Ensure non-negative
+    
+    return predicted_sales
 
 
 # Shared: ensure total_sales and resolved column names
@@ -589,23 +595,53 @@ elif page == "Predict":
         if st.button("Predict", type="primary"):
             try:
                 # Classification prediction
+                classification_pred = None
+                classification_label = None
+                classification_proba = None
+                
                 if model is not None:
                     pred, proba = predict_hit(model, genre, console, publisher, developer, critic_score, default_release_year)
-                    label = "Hit" if pred == 1 else "Not Hit"
-                    st.markdown("#### Hit Classification")
+                    classification_label = "Hit" if pred == 1 else "Not Hit"
+                    classification_proba = proba
+                    
+                    st.markdown("#### 🎯 Hit Classification Model")
                     col1, col2 = st.columns(2)
                     with col1:
-                        st.metric("Prediction", label)
+                        st.metric("Prediction", classification_label)
                     with col2:
                         st.metric("Probability", f"{proba:.2%}")
                     st.progress(min(max(proba, 0.0), 1.0), text=f"P(Hit) = {proba:.2%}")
+                    st.caption("Classification model predicts if total sales ≥ 1.0M units")
                 
                 # Regression prediction
                 if regressor is not None:
                     predicted_sales = predict_sales(regressor, genre, console, publisher, developer, critic_score, default_release_year)
-                    st.markdown("#### Total Sales Prediction")
-                    st.metric("Predicted Total Sales", f"{predicted_sales:.2f}M units")
-                    st.caption("Based on regression model trained on historical sales data")
+                    
+                    st.markdown("#### 📊 Regression Sales Prediction")
+                    st.metric("Predicted Sales", f"{predicted_sales:.2f}M units")
+                    st.caption("Regression model predicts the total sales in millions of units")
+                    
+                    # Show insights based on both predictions
+                    if classification_label:
+                        st.markdown("---")
+                        st.markdown("#### � Combined Insights")
+                        
+                        if classification_label == "Hit":
+                            st.success(f"✅ **Classification predicts Hit** with {classification_proba:.1%} probability")
+                            st.write(f"📊 Expected sales: **{predicted_sales:.2f}M units**")
+                            if predicted_sales >= 1.5:
+                                st.write("💪 Strong sales potential - well above threshold")
+                            elif predicted_sales >= 1.0:
+                                st.write("✓ Moderate sales potential - near threshold")
+                            else:
+                                st.write("⚠️ Sales estimate below typical Hit threshold (1.0M)")
+                        else:
+                            st.info(f"📊 **Classification predicts Not Hit** ({classification_proba:.1%} probability)")
+                            st.write(f"📊 Expected sales: **{predicted_sales:.2f}M units**")
+                            if predicted_sales >= 0.8:
+                                st.write("💡 Close to threshold - niche success possible")
+                            else:
+                                st.write("📉 Lower sales expected")
                 else:
                     st.info("💡 Run `src/train_regression.py` to get total sales predictions")
                     

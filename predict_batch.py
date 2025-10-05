@@ -94,18 +94,25 @@ def main():
     result['hit_probability'] = hit_proba
     result['predicted_sales'] = sales_pred
     
-    # Add interpretation
-    def interpret(row):
-        if row['hit_prediction'] == 1 and row['predicted_sales'] >= 1.0:
-            return 'Strong: Both agree - likely hit'
-        elif row['hit_prediction'] == 0 and row['predicted_sales'] < 1.0:
-            return 'Weak: Both agree - likely not hit'
-        elif row['hit_prediction'] == 1 and row['predicted_sales'] < 1.0:
-            return 'Mixed: Hit class but <1M predicted'
+    # Add insights based on classification and sales prediction
+    def get_insights(row):
+        class_label = 'Hit' if row['hit_prediction'] == 1 else 'Not Hit'
+        sales = row['predicted_sales']
+        
+        if class_label == 'Hit':
+            if sales >= 1.5:
+                return f'✅ Hit predicted - Strong sales potential ({sales:.2f}M)'
+            elif sales >= 1.0:
+                return f'✅ Hit predicted - Moderate sales ({sales:.2f}M)'
+            else:
+                return f'⚠️ Hit predicted but lower sales estimate ({sales:.2f}M)'
         else:
-            return 'Mixed: Not hit class but >=1M predicted'
+            if sales >= 0.8:
+                return f'📊 Not Hit - Close to threshold ({sales:.2f}M)'
+            else:
+                return f'📉 Not Hit - Lower sales expected ({sales:.2f}M)'
     
-    result['interpretation'] = result.apply(interpret, axis=1)
+    result['insights'] = result.apply(get_insights, axis=1)
     
     # Save output
     print(f"Saving results to: {output_path}")
@@ -116,14 +123,18 @@ def main():
     print("PREDICTION SUMMARY")
     print("="*60)
     print(f"Total games:        {len(result)}")
-    print(f"Predicted hits:     {(result['hit_prediction'] == 1).sum()} ({(result['hit_prediction'] == 1).mean():.1%})")
-    print(f"Predicted non-hits: {(result['hit_prediction'] == 0).sum()} ({(result['hit_prediction'] == 0).mean():.1%})")
-    print(f"\nAverage predicted sales: {result['predicted_sales'].mean():.2f}M units")
-    print(f"Median predicted sales:  {result['predicted_sales'].median():.2f}M units")
-    print(f"Max predicted sales:     {result['predicted_sales'].max():.2f}M units")
-    print(f"Min predicted sales:     {result['predicted_sales'].min():.2f}M units")
-    print("\nInterpretation breakdown:")
-    print(result['interpretation'].value_counts().to_string())
+    print(f"\nClassification Model (Hit/Not Hit):")
+    print(f"  Predicted Hit:     {(result['hit_prediction'] == 1).sum()} ({(result['hit_prediction'] == 1).mean():.1%})")
+    print(f"  Predicted Not Hit: {(result['hit_prediction'] == 0).sum()} ({(result['hit_prediction'] == 0).mean():.1%})")
+    print(f"\nRegression Model (Sales Predictions):")
+    print(f"  Average: {result['predicted_sales'].mean():.2f}M units")
+    print(f"  Median:  {result['predicted_sales'].median():.2f}M units")
+    print(f"  Max:     {result['predicted_sales'].max():.2f}M units")
+    print(f"  Min:     {result['predicted_sales'].min():.2f}M units")
+    print(f"\nGames above 1.0M:   {(result['predicted_sales'] >= 1.0).sum()} ({(result['predicted_sales'] >= 1.0).mean():.1%})")
+    print(f"Games below 1.0M:   {(result['predicted_sales'] < 1.0).sum()} ({(result['predicted_sales'] < 1.0).mean():.1%})")
+    print("\nInsights Distribution:")
+    print(result['insights'].value_counts().to_string())
     print("="*60)
     print(f"\n✓ Results saved to: {output_path}")
 
