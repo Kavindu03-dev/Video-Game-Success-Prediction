@@ -11,9 +11,12 @@ from sklearn.pipeline import Pipeline
 from sklearn.metrics import (
     accuracy_score,
     f1_score,
+    precision_score,
+    recall_score,
     mean_absolute_error,
     mean_squared_error,
     r2_score,
+    classification_report,
 )
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import (
@@ -87,8 +90,12 @@ def evaluate_classification_model(name, model, X_test, y_test):
     y_pred = model.predict(X_test)
     acc = accuracy_score(y_test, y_pred)
     f1 = f1_score(y_test, y_pred)
-    print(f"Model: {name}\n  Test Accuracy: {acc:.4f}\n  Test F1: {f1:.4f}\n")
-    return acc, f1
+    precision = precision_score(y_test, y_pred, zero_division=0)
+    recall = recall_score(y_test, y_pred, zero_division=0)
+    report = classification_report(y_test, y_pred, zero_division=0, digits=4)
+    print(f"Model: {name}\n  Test Accuracy: {acc:.4f}\n  Test Precision: {precision:.4f}\n  Test Recall: {recall:.4f}\n  Test F1: {f1:.4f}")
+    print("  Classification Report (per class):\n" + report)
+    return acc, f1, precision, recall
 
 
 def evaluate_regression_model(name, model, X_test, y_test):
@@ -155,7 +162,7 @@ def train_classification(df: pd.DataFrame, cv_folds: int = 5, use_cv: bool = Tru
     )
 
     models = get_classification_models()
-    results = []  # (name, cv_mean_f1, cv_mean_acc, test_acc, test_f1, pipeline)
+    results = []  # (name, cv_mean_f1, cv_mean_acc, cv_mean_precision, cv_mean_recall, test_acc, test_f1, test_precision, test_recall, pipeline)
     cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42) if use_cv else None
 
     for name, clf in models.items():
@@ -164,28 +171,59 @@ def train_classification(df: pd.DataFrame, cv_folds: int = 5, use_cv: bool = Tru
             print(f"CV evaluating {name} (f1, accuracy)...")
             f1_scores = cross_val_score(pipe, X_train, y_train, cv=cv, scoring='f1')
             acc_scores = cross_val_score(pipe, X_train, y_train, cv=cv, scoring='accuracy')
+            precision_scores = cross_val_score(pipe, X_train, y_train, cv=cv, scoring='precision')
+            recall_scores = cross_val_score(pipe, X_train, y_train, cv=cv, scoring='recall')
             cv_mean_f1, cv_mean_acc = f1_scores.mean(), acc_scores.mean()
-            print(f"  CV Mean F1: {cv_mean_f1:.4f} | CV Mean Acc: {cv_mean_acc:.4f}")
+            cv_mean_precision, cv_mean_recall = precision_scores.mean(), recall_scores.mean()
+            print(
+                f"  CV Mean Acc: {cv_mean_acc:.4f} | CV Mean F1: {cv_mean_f1:.4f} | CV Mean Precision: {cv_mean_precision:.4f} | CV Mean Recall: {cv_mean_recall:.4f}"
+            )
         else:
-            cv_mean_f1 = cv_mean_acc = float('nan')
+            cv_mean_f1 = cv_mean_acc = cv_mean_precision = cv_mean_recall = float('nan')
 
         # Fit on full training split and evaluate holdout
         pipe.fit(X_train, y_train)
-        test_acc, test_f1 = evaluate_classification_model(name, pipe, X_test, y_test)
-        results.append((name, cv_mean_f1, cv_mean_acc, test_acc, test_f1, pipe))
+        test_acc, test_f1, test_precision, test_recall = evaluate_classification_model(name, pipe, X_test, y_test)
+        results.append((
+            name,
+            cv_mean_f1,
+            cv_mean_acc,
+            cv_mean_precision,
+            cv_mean_recall,
+            test_acc,
+            test_f1,
+            test_precision,
+            test_recall,
+            pipe,
+        ))
 
     # Select best by CV F1 (if available) else test F1, tie-breaker accuracy
     if use_cv:
         results.sort(key=lambda x: (x[1], x[2]), reverse=True)
     else:
-        results.sort(key=lambda x: (x[4], x[3]), reverse=True)
+        results.sort(key=lambda x: (x[6], x[5]), reverse=True)
     best = results[0]
-    best_name, cv_mean_f1, cv_mean_acc, test_acc, test_f1, best_model = best
+    (
+        best_name,
+        cv_mean_f1,
+        cv_mean_acc,
+        cv_mean_precision,
+        cv_mean_recall,
+        test_acc,
+        test_f1,
+        test_precision,
+        test_recall,
+        best_model,
+    ) = best
 
     print("Best classification model:", best_name)
-    print(f"  Test Accuracy: {test_acc:.4f} | Test F1: {test_f1:.4f}")
+    print(
+        f"  Test Acc: {test_acc:.4f} | Test F1: {test_f1:.4f} | Test Precision: {test_precision:.4f} | Test Recall: {test_recall:.4f}"
+    )
     if use_cv:
-        print(f"  CV Mean F1: {cv_mean_f1:.4f} | CV Mean Acc: {cv_mean_acc:.4f}")
+        print(
+            f"  CV Mean Acc: {cv_mean_acc:.4f} | CV Mean F1: {cv_mean_f1:.4f} | CV Mean Precision: {cv_mean_precision:.4f} | CV Mean Recall: {cv_mean_recall:.4f}"
+        )
 
     os.makedirs(ARTIFACT_DIR, exist_ok=True)
     joblib.dump(best_model, os.path.join(ARTIFACT_DIR, 'best_model.joblib'))
@@ -193,8 +231,12 @@ def train_classification(df: pd.DataFrame, cv_folds: int = 5, use_cv: bool = Tru
         'selected_model': best_name,
         'test_accuracy': float(test_acc),
         'test_f1': float(test_f1),
+        'test_precision': float(test_precision),
+        'test_recall': float(test_recall),
         'cv_mean_f1': float(cv_mean_f1) if use_cv else None,
         'cv_mean_accuracy': float(cv_mean_acc) if use_cv else None,
+        'cv_mean_precision': float(cv_mean_precision) if use_cv else None,
+        'cv_mean_recall': float(cv_mean_recall) if use_cv else None,
         'timestamp': datetime.utcnow().isoformat() + 'Z',
         'task': 'classification',
         'success_threshold_million_units': SUCCESS_THRESHOLD,

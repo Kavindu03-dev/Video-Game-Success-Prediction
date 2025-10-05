@@ -38,9 +38,8 @@ python .\src\train.py --task both --cv-folds 5
 # Quick train without cross-validation (faster)
 python .\src\train.py --task both --no-cv
 
-# Only classification or only regression
+# Only classification 
 python .\src\train.py --task classification
-python .\src\train.py --task regression
 
 # Run app (Streamlit)
 streamlit run .\src\app.py
