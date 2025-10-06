@@ -1,8 +1,0 @@
-genre,console,publisher,developer,critic_score,release_year,hit_prediction,hit_prediction_label,hit_probability,predicted_sales,regression_hit_label,interpretation
-action,ps4,sony computer entertainment,naughty dog,9.5,2020,0,Not Hit,0.41333333333333333,2.1789616038508615,Hit,"⚠️ Mixed: Classification=Not Hit, Regression=Hit (≥1.0M)"
-sports,xone,ea sports,ea canada,8.2,2021,1,Hit,0.7166666666666667,1.4990936754812572,Hit,✅ Strong: Both predict Hit (≥1.0M)
-shooter,pc,activision,infinity ward,8.8,2019,0,Not Hit,0.14777777777777776,0.36210118057960355,Not Hit,✅ Agreement: Both predict Not Hit (<1.0M)
-role-playing,switch,nintendo,game freak,9.0,2022,0,Not Hit,0.17666666666666667,0.5600639677208373,Not Hit,✅ Agreement: Both predict Not Hit (<1.0M)
-racing,ps4,electronic arts,ea black box,7.5,2020,1,Hit,0.52,1.3993332801543525,Hit,✅ Strong: Both predict Hit (≥1.0M)
-adventure,pc,indie studio,indie studio,7.0,2023,0,Not Hit,0.013333333333333334,0.06927981644321532,Not Hit,✅ Agreement: Both predict Not Hit (<1.0M)
-action,ps5,ubisoft,ubisoft montreal,8.5,2024,1,Hit,0.5558333333333333,1.423946907369965,Hit,✅ Strong: Both predict Hit (≥1.0M)
