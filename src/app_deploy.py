@@ -1,5 +1,3 @@
-
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -307,13 +305,14 @@ else:
 
 # Show model status
 if model is not None and regressor is not None:
-    st.success("🎉 Both models are ready! You can now make predictions.")
+    # Suppressed success banner per request
+    pass
 elif model is not None:
-    st.info("✅ Classification model ready. Regression model training in progress...")
+    st.info("✅ Classification model loaded. Regression model not loaded.")
 elif regressor is not None:
-    st.info("✅ Regression model ready. Classification model training in progress...")
+    st.info("✅ Regression model loaded. Classification model not loaded.")
 else:
-    st.warning("⚠️ Models are still training. Please wait...")
+    st.warning("⚠️ Models are not loaded. Commit models to the repository to enable predictions.")
 
 
 if page == "Explore":
