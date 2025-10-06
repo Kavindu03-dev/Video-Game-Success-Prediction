@@ -296,7 +296,7 @@ if page == "Explore":
         with col1:
             chart_type = st.selectbox(
                 "Chart Type", 
-                options=["Bar Chart", "Horizontal Bar", "Pie Chart", "Donut Chart", "Line Chart"],
+                options=["Bar Chart", "Horizontal Bar", "Pie Chart", "Donut Chart"],
                 index=0,
                 help="Choose your preferred visualization style"
             )
@@ -520,34 +520,7 @@ if page == "Explore":
                         final_chart = (chart + text).resolve_scale(color='independent')
                         st.altair_chart(final_chart, use_container_width=True)
                     
-                    elif chart_type == "Line Chart":
-                        # Create line chart for trend analysis
-                        chart_data = pd.DataFrame({
-                            dim[0]: s.index,
-                            metric_type: s.values
-                        })
-                        
-                        chart = alt.Chart(chart_data).mark_line(
-                            point=True,
-                            strokeWidth=3,
-                            stroke='#1f77b4'
-                        ).encode(
-                            x=alt.X(f'{dim[0]}:N', 
-                                   title=dim[0],
-                                   axis=alt.Axis(angle=-45)),
-                            y=alt.Y(f'{metric_type}:Q', 
-                                   title=metric_type,
-                                   axis=alt.Axis(format='.2f')),
-                            tooltip=[
-                                alt.Tooltip(f'{dim[0]}:N', title=dim[0]),
-                                alt.Tooltip(f'{metric_type}:Q', title=metric_type, format='.2f')
-                            ]
-                        ).properties(
-                            height=400,
-                            width=600
-                        )
-                        
-                        st.altair_chart(chart, use_container_width=True)
+                    # Removed Line Chart option and implementation
                     
                     # Display summary statistics
                     st.markdown("---")
@@ -1177,7 +1150,7 @@ elif page == "Insights":
                         with col2:
                             chart_type = st.selectbox(
                                 "Chart Type",
-                                options=["Horizontal Bar", "Vertical Bar", "Pie Chart"],
+                                options=["Horizontal Bar", "Pie Chart"],
                                 index=0,
                                 key="feature_chart_type"
                             )
@@ -1219,32 +1192,7 @@ elif page == "Insights":
                             )
                             st.altair_chart(chart, use_container_width=True)
                         
-                        elif chart_type == "Vertical Bar":
-                            chart = alt.Chart(feature_data).mark_bar(
-                                cornerRadius=4,
-                                stroke='white',
-                                strokeWidth=1
-                            ).encode(
-                                x=alt.X('Feature:N', 
-                                       sort='-y',
-                                       title="Feature",
-                                       axis=alt.Axis(angle=-45)),
-                                y=alt.Y('Importance:Q', 
-                                       title="Feature Importance",
-                                       axis=alt.Axis(format='.3f')),
-                                color=alt.Color('Importance:Q', 
-                                              scale=alt.Scale(scheme='plasma'),
-                                              legend=None),
-                                tooltip=[
-                                    alt.Tooltip('Feature:N', title="Feature"),
-                                    alt.Tooltip('Importance:Q', title="Importance", format='.4f'),
-                                    alt.Tooltip('Percentage:Q', title="Percentage", format='.1f')
-                                ]
-                            ).properties(
-                                height=400,
-                                width=600
-                            )
-                            st.altair_chart(chart, use_container_width=True)
+                        # Removed Vertical Bar chart type and implementation
                         
                         elif chart_type == "Pie Chart":
                             # Prepare labels
@@ -1338,7 +1286,7 @@ elif page == "Developer Dashboard":
         with c3:
             agg_fn = st.selectbox("Aggregation", options=['sum', 'mean', 'median', 'count'])
         with c4:
-            chart_type = st.selectbox("Chart Type", options=['bar', 'line', 'scatter', 'area'], index=0)
+            chart_type = st.selectbox("Chart Type", options=['bar', 'line', 'area'], index=0)
 
         f1, f2, f3, f4 = st.columns(4)
         with f1:
@@ -1397,16 +1345,7 @@ elif page == "Developer Dashboard":
                     y=alt.Y(f"{y_axis}:Q", title=y_axis.replace('_', ' ').title()),
                     tooltip=list(s.columns)
                 ).properties(height=400)
-            elif chart_type == 'scatter':
-                if len(dfx) > 1000:
-                    dfx_sample = dfx.sample(1000)
-                else:
-                    dfx_sample = dfx
-                base = alt.Chart(dfx_sample).mark_circle(size=60).encode(
-                    x=alt.X(f"{x_axis}:O" if x_axis in cats else f"{x_axis}:Q", title=x_axis.replace('_', ' ').title()),
-                    y=alt.Y(f"{y_axis}:Q", title=y_axis.replace('_', ' ').title()),
-                    tooltip=[x_axis, y_axis]
-                ).properties(height=400)
+            # Removed scatterplot chart type and implementation
             elif chart_type == 'area':
                 base = alt.Chart(s).mark_area().encode(
                     x=alt.X(f"{x_axis}:O", title=x_axis.replace('_', ' ').title()),
@@ -1426,7 +1365,7 @@ elif page == "Developer Dashboard":
             add_col1, add_col2 = st.columns([1, 3])
             with add_col1:
                 if st.button("Add Chart"):
-                    data_to_store = dfx[[x_axis, y_axis]].to_dict(orient='list') if chart_type == 'scatter' else s.to_dict(orient='list')
+                    data_to_store = s.to_dict(orient='list')
                     release_year_filter = [int(year_range[0]), int(year_range[1])] if ('year_range' in locals() and isinstance(year_range, (list, tuple))) else None
                     st.session_state.chart_specs.append({
                         'x_axis': x_axis,
