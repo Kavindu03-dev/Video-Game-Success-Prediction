@@ -45,6 +45,20 @@ python .\src\train.py --task classification
 streamlit run .\src\app.py
 ```
 
+## Deploy (Streamlit Community Cloud)
+
+1. Push this repo to GitHub (public or private).
+2. Go to share.streamlit.io and create a new app from your repo.
+3. Set the entry file to `src/app_deploy.py`.
+4. Ensure your branch is correct (e.g., `main` when you merge).
+5. The platform installs `requirements.txt` automatically (includes streamlit, scikit-learn, pandas, altair, etc.).
+
+Artifacts needed at runtime:
+- `models/best_model.joblib` (classification) and optionally `models/best_regressor.joblib` (regression)
+- `data/vg_sales_2024.csv` for the Explore/Insights pages
+
+If models are missing in cloud, train locally and commit the artifacts to `models/` or adapt code to train on first run.
+
 ## Files
 - `data/vg_sales_2024.csv` — dataset
 - `src/train.py` — unified training (classification + regression, optional cross-validation)
