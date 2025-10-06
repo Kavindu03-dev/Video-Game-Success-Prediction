@@ -36,6 +36,21 @@ def load_data(csv_path: Path) -> pd.DataFrame:
     return pd.read_csv(csv_path)
 
 
+def load_demo_data() -> pd.DataFrame:
+    """Fallback demo dataset so Explore/Insights work if the CSV isn't present."""
+    data = [
+        {"genre": "action", "console": "ps4", "publisher": "sony", "developer": "sony", "critic_score": 8.5, "release_year": 2018, "na_sales": 1.2, "eu_sales": 1.1, "jp_sales": 0.4, "other_sales": 0.5},
+        {"genre": "adventure", "console": "switch", "publisher": "nintendo", "developer": "nintendo", "critic_score": 9.0, "release_year": 2017, "na_sales": 2.0, "eu_sales": 1.8, "jp_sales": 1.2, "other_sales": 0.9},
+        {"genre": "sports", "console": "xone", "publisher": "ea", "developer": "ea", "critic_score": 7.2, "release_year": 2019, "na_sales": 0.8, "eu_sales": 1.0, "jp_sales": 0.1, "other_sales": 0.3},
+        {"genre": "racing", "console": "ps4", "publisher": "sony", "developer": "polyphony", "critic_score": 7.8, "release_year": 2020, "na_sales": 0.6, "eu_sales": 0.9, "jp_sales": 0.2, "other_sales": 0.2},
+        {"genre": "role-playing", "console": "switch", "publisher": "square enix", "developer": "square enix", "critic_score": 8.7, "release_year": 2021, "na_sales": 0.9, "eu_sales": 0.7, "jp_sales": 0.9, "other_sales": 0.4},
+        {"genre": "shooter", "console": "pc", "publisher": "activision", "developer": "activision", "critic_score": 8.1, "release_year": 2016, "na_sales": 1.1, "eu_sales": 0.9, "jp_sales": 0.05, "other_sales": 0.4},
+    ]
+    df_demo = pd.DataFrame(data)
+    df_demo["total_sales"] = df_demo[["na_sales", "eu_sales", "jp_sales", "other_sales"]].sum(axis=1)
+    return df_demo
+
+
 project_root = Path(__file__).resolve().parents[1]
 model_path = project_root / 'models' / 'best_model.joblib'
 regressor_path = project_root / 'models' / 'best_regressor.joblib'
@@ -78,6 +93,11 @@ if data_path.exists():
         st.error(f"Failed to load data: {e}")
 else:
     st.warning("Dataset not found under data/vg_sales_2024.csv or data/raw/vg_sales_2024.csv.")
+
+# Fallback to demo data if dataset missing or failed to load
+if df is None or df.empty:
+    df = load_demo_data()
+    st.info("Using a small built-in demo dataset so Explore/Insights are available. Commit data/vg_sales_2024.csv to use the full dataset.")
 
 
 def _resolve_column(df: pd.DataFrame, candidates: list[str]) -> str | None:
@@ -295,10 +315,197 @@ elif regressor is not None:
 else:
     st.warning("⚠️ Models are still training. Please wait...")
 
-# Rest of the app code would go here...
-# For brevity, I'll include just the Predict page as an example
 
-if page == "Predict":
+if page == "Explore":
+    st.subheader("📊 Sales Analytics Dashboard")
+    st.markdown("Explore video game sales data with interactive visualizations and insights")
+    
+    if df is None or df.empty:
+        st.info("Dataset not loaded.")
+    else:
+        col1, col2, col3 = st.columns([1, 1, 1])
+
+        with col1:
+            chart_type = st.selectbox(
+                "Chart Type", 
+                options=["Bar Chart", "Horizontal Bar", "Pie Chart", "Donut Chart"],
+                index=0,
+                help="Choose your preferred visualization style"
+            )
+        with col2:
+            metric_type = st.selectbox(
+                "Metric", 
+                options=["Total Sales", "Average Sales", "Median Sales", "Game Count"],
+                index=0,
+                help="Select the metric to analyze"
+            )
+        with col3:
+            st.markdown("<div style='text-align:right; padding-top:0.4rem; font-size:0.9rem; color:#666;'>Configure chart & metric</div>", unsafe_allow_html=True)
+
+        st.markdown("<hr style='margin:0.4rem 0 0.9rem; border:none; border-top:1px solid #e5e5e5;' />", unsafe_allow_html=True)
+        
+        col4, col5, col6 = st.columns([2, 1, 1])
+        
+        with col4:
+            dim = st.selectbox(
+                "Group by", 
+                options=[("Genre", genre_col), ("Console", console_col), ("Publisher", publisher_col), ("Developer", developer_col)], 
+                index=0, 
+                format_func=lambda x: x[0],
+                help="Select the category to analyze"
+            )
+        
+        with col5:
+            topn = st.slider("Top N", min_value=5, max_value=50, value=15, step=1, help="Number of top items to display")
+        
+        with col6:
+            show_percentages = st.checkbox("Show Percentages", value=True, help="Display percentage values on charts")
+        
+        with st.expander("🔍 Advanced Filters", expanded=False):
+            filter_col1, filter_col2, filter_col3 = st.columns(3)
+            
+            with filter_col1:
+                year_range = st.slider(
+                    "Release Year Range", 
+                    min_value=1980, 
+                    max_value=2025, 
+                    value=(1990, 2025),
+                    step=1,
+                    help="Filter games by release year"
+                )
+            
+            with filter_col2:
+                min_sales = st.number_input(
+                    "Minimum Sales (M)", 
+                    min_value=0.0, 
+                    max_value=100.0, 
+                    value=0.0, 
+                    step=0.1,
+                    help="Filter out games with sales below this threshold"
+                )
+            
+            with filter_col3:
+                sort_order = st.selectbox(
+                    "Sort Order", 
+                    options=["Descending", "Ascending"], 
+                    index=0,
+                    help="Sort results in ascending or descending order"
+                )
+        
+        dim_col = dim[1]
+        if dim_col in df.columns and total_col in df.columns:
+            df_filtered = df.copy()
+            
+            if 'release_year' in df_filtered.columns:
+                df_filtered = df_filtered[
+                    (pd.to_numeric(df_filtered['release_year'], errors='coerce') >= year_range[0]) &
+                    (pd.to_numeric(df_filtered['release_year'], errors='coerce') <= year_range[1])
+                ]
+            
+            df_filtered = df_filtered[pd.to_numeric(df_filtered[total_col], errors='coerce') >= min_sales]
+            
+            if df_filtered.empty:
+                st.warning("No data matches the selected filters. Try adjusting your criteria.")
+            else:
+                if metric_type == "Total Sales":
+                    s = df_filtered.groupby(dim_col, dropna=False)[total_col].sum()
+                elif metric_type == "Average Sales":
+                    s = df_filtered.groupby(dim_col, dropna=False)[total_col].mean()
+                elif metric_type == "Median Sales":
+                    s = df_filtered.groupby(dim_col, dropna=False)[total_col].median()
+                elif metric_type == "Game Count":
+                    s = df_filtered.groupby(dim_col, dropna=False).size()
+                
+                ascending = sort_order == "Ascending"
+                s = s.sort_values(ascending=ascending).head(topn)
+                
+                if s.empty:
+                    st.warning("No data available for the selected criteria.")
+                else:
+                    if chart_type in ["Bar Chart", "Horizontal Bar"]:
+                        chart_data = pd.DataFrame({
+                            dim[0]: s.index,
+                            metric_type: s.values
+                        })
+                        
+                        if chart_type == "Bar Chart":
+                            chart = alt.Chart(chart_data).mark_bar(
+                                cornerRadius=4,
+                                stroke='white',
+                                strokeWidth=1
+                            ).encode(
+                                x=alt.X(f'{metric_type}:Q', title=metric_type, axis=alt.Axis(format='.2f')),
+                                y=alt.Y(f'{dim[0]}:N', sort=alt.EncodingSortField(field=metric_type, order='descending'), title=dim[0]),
+                                color=alt.Color(f'{metric_type}:Q', scale=alt.Scale(scheme='viridis'), legend=None),
+                                tooltip=[alt.Tooltip(f'{dim[0]}:N', title=dim[0]), alt.Tooltip(f'{metric_type}:Q', title=metric_type, format='.2f')]
+                            ).properties(height=400, width=600)
+                        else:
+                            chart = alt.Chart(chart_data).mark_bar(
+                                cornerRadius=4,
+                                stroke='white',
+                                strokeWidth=1
+                            ).encode(
+                                x=alt.X(f'{metric_type}:Q', title=metric_type, axis=alt.Axis(format='.2f')),
+                                y=alt.Y(f'{dim[0]}:N', sort=alt.EncodingSortField(field=metric_type, order='descending'), title=dim[0]),
+                                color=alt.Color(f'{metric_type}:Q', scale=alt.Scale(scheme='plasma'), legend=None),
+                                tooltip=[alt.Tooltip(f'{dim[0]}:N', title=dim[0]), alt.Tooltip(f'{metric_type}:Q', title=metric_type, format='.2f')]
+                            ).properties(height=max(300, len(s) * 25), width=600)
+                        st.altair_chart(chart, use_container_width=True)
+                    elif chart_type in ["Pie Chart", "Donut Chart"]:
+                        chart_data = pd.DataFrame({
+                            dim[0]: s.index,
+                            metric_type: s.values
+                        })
+                        if show_percentages:
+                            total = s.sum()
+                            chart_data['Percentage'] = (chart_data[metric_type] / total * 100).round(1)
+                            chart_data['Label'] = chart_data[dim[0]] + ' (' + chart_data['Percentage'].astype(str) + '%)'
+                        else:
+                            chart_data['Label'] = chart_data[dim[0]]
+                        if chart_type == "Pie Chart":
+                            chart = alt.Chart(chart_data).mark_arc(innerRadius=0, outerRadius=150, stroke='white', strokeWidth=2).encode(
+                                theta=alt.Theta(f'{metric_type}:Q'),
+                                color=alt.Color(f'{dim[0]}:N', scale=alt.Scale(scheme='set3')),
+                                tooltip=[alt.Tooltip(f'{dim[0]}:N', title=dim[0]), alt.Tooltip(f'{metric_type}:Q', title=metric_type, format='.2f')]
+                            ).properties(width=400, height=400)
+                        else:
+                            chart = alt.Chart(chart_data).mark_arc(innerRadius=60, outerRadius=150, stroke='white', strokeWidth=2).encode(
+                                theta=alt.Theta(f'{metric_type}:Q'),
+                                color=alt.Color(f'{dim[0]}:N', scale=alt.Scale(scheme='set3')),
+                                tooltip=[alt.Tooltip(f'{dim[0]}:N', title=dim[0]), alt.Tooltip(f'{metric_type}:Q', title=metric_type, format='.2f')]
+                            ).properties(width=400, height=400)
+                        text = alt.Chart(chart_data).mark_text(align='center', baseline='middle', fontSize=12, fontWeight='bold').encode(
+                            text=alt.Text('Label:N'), color=alt.value('white')
+                        )
+                        final_chart = (chart + text).resolve_scale(color='independent')
+                        st.altair_chart(final_chart, use_container_width=True)
+
+                    st.markdown("---")
+                    col7, col8, col9, col10 = st.columns(4)
+                    with col7:
+                        st.metric("Total Items", f"{len(s):,}", help="Number of categories shown")
+                    with col8:
+                        total_value = s.sum() if metric_type != "Game Count" else s.sum()
+                        st.metric("Total Value", f"{total_value:,.2f}", help=f"Sum of all {metric_type.lower()}")
+                    with col9:
+                        avg_value = s.mean()
+                        st.metric("Average", f"{avg_value:,.2f}", help=f"Average {metric_type.lower()}")
+                    with col10:
+                        max_value = s.max()
+                        st.metric("Highest", f"{max_value:,.2f}", help=f"Highest {metric_type.lower()}")
+
+                    st.markdown("### 📋 Detailed Data")
+                    display_data = pd.DataFrame({'Rank': range(1, len(s) + 1), dim[0]: s.index, metric_type: s.values})
+                    if show_percentages and metric_type != "Game Count":
+                        total = s.sum()
+                        display_data['Percentage'] = (display_data[metric_type] / total * 100).round(2)
+                    st.dataframe(display_data, use_container_width=True, hide_index=True)
+                    csv = display_data.to_csv(index=False)
+                    st.download_button(label="📥 Download Data as CSV", data=csv, file_name=f"{dim[0].lower()}_{metric_type.lower().replace(' ', '_')}_analysis.csv", mime="text/csv")
+        else:
+            st.warning("Required columns for this analysis were not found in the dataset.")
+
+elif page == "Predict":
     st.subheader("Predict Hit / Not Hit")
     if df is not None:
         df = _ensure_total_sales(df)
