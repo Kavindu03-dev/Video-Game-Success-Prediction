@@ -63,9 +63,9 @@ if model_path.exists():
     try:
         model = load_model(model_path)
     except Exception as e:
-        st.error(f"Failed to load classification model: {e}")
+        pass  # Suppress error message
 else:
-    st.warning("Classification model file not found. Train and save a model to 'models/best_model.joblib' first (run src/train.py).")
+    pass  # Suppress training instruction message
 
 if model is not None and not hasattr(model, 'predict_proba'):
     st.info("Loaded model does not expose predict_proba; probability shown may be based on decision function or class label.")
@@ -76,9 +76,9 @@ if regressor_path.exists():
     try:
         regressor = load_model(regressor_path)
     except Exception as e:
-        st.error(f"Failed to load regression model: {e}")
+        pass  # Suppress error message
 else:
-    st.info("Regression model not found. Run src/train_regression.py to predict total sales.")
+    pass  # Suppress training instruction message
 
 df = None
 if data_path.exists():
@@ -90,12 +90,12 @@ if data_path.exists():
     except Exception as e:
         st.error(f"Failed to load data: {e}")
 else:
-    st.warning("Dataset not found under data/vg_sales_2024.csv or data/raw/vg_sales_2024.csv.")
+    pass  # Suppress dataset warning
 
 # Fallback to demo data if dataset missing or failed to load
 if df is None or df.empty:
     df = load_demo_data()
-    st.info("Using a small built-in demo dataset so Explore/Insights are available. Commit data/vg_sales_2024.csv to use the full dataset.")
+    # Suppress demo dataset message
 
 
 def _resolve_column(df: pd.DataFrame, candidates: list[str]) -> str | None:
@@ -303,16 +303,15 @@ else:
     genre_col = console_col = publisher_col = developer_col = total_col = None
 
 
-# Show model status
+# Show model status - all messages suppressed for deployment
 if model is not None and regressor is not None:
-    # Suppressed success banner per request
     pass
 elif model is not None:
-    st.info("✅ Classification model loaded. Regression model not loaded.")
+    pass
 elif regressor is not None:
-    st.info("✅ Regression model loaded. Classification model not loaded.")
+    pass
 else:
-    st.warning("⚠️ Models are not loaded. Commit models to the repository to enable predictions.")
+    pass
 
 
 if page == "Explore":
