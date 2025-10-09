@@ -57,3 +57,46 @@ streamlit run .\src\app.py
 - Feel free to adjust `SUCCESS_THRESHOLD` in `src/train.py` if your rubric defines success differently.
 - If class imbalance is high, consider using class_weight='balanced' for some models or tune thresholds.
 - Extend features (e.g., region dummy variables, franchise detection) for better accuracy.
+
+## Large model files (Git LFS)
+The classification/regression artifacts (e.g., `best_model.joblib`) can exceed GitHub's 100 MB limit. This repo is configured to use **Git LFS** for any `*.joblib` files via the `.gitattributes` file.
+
+### One-time setup (per machine)
+```powershell
+# Install Git LFS (choose one method)
+winget install Git.GitLFS
+# or: choco install git-lfs
+
+git lfs install
+```
+
+### Adding / updating a model artifact
+After training creates/updates a `*.joblib` file:
+```powershell
+# Ensure LFS is tracking (already in .gitattributes, but safe to confirm)
+git lfs track "*.joblib"
+
+# Stage LFS attributes if first time
+git add .gitattributes
+
+# Re-stage the model if it was previously added without LFS
+git rm --cached models/best_model.joblib 2>$null
+
+# Add model + other changes
+git add models/best_model.joblib models/best_regressor.joblib models/*.json
+git commit -m "Update trained models"
+git push origin main
+```
+
+### Verifying LFS handling
+```powershell
+git lfs ls-files
+```
+You should see the Joblib artifacts listed. Collaborators must also have Git LFS installed before cloning/pulling.
+
+### Alternative: skip committing large binaries
+If you prefer not to store models, add this to `.gitignore` and use a release asset / DVC / cloud storage:
+```
+models/*.joblib
+```
+Then provide a script or instructions to regenerate the model (`python .\src\train.py`).

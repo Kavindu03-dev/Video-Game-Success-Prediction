@@ -1,0 +1,1 @@
+{"selected_model":"random_forest","test_accuracy":0.92998679,"test_f1":0.4251626898,"test_precision":0.6125,"test_recall":0.3255813953,"cv_mean_f1":null,"cv_mean_accuracy":null,"cv_mean_precision":null,"cv_mean_recall":null,"timestamp":"2025-10-09T05:39:01.421799Z","task":"classification","success_threshold_million_units":1.0}

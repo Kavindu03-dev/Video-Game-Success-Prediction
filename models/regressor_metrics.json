@@ -1,0 +1,1 @@
+{"selected_model":"gradient_boosting_reg","test_mae":0.2602542795,"test_rmse":0.700754114,"test_r2":0.3285501698,"cv_mean_r2":null,"cv_mean_mae":null,"cv_mean_rmse":null,"timestamp":"2025-10-09T05:39:21.155334Z","task":"regression","target":"total_sales"}
