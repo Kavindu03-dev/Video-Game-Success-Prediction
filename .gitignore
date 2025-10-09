@@ -20,5 +20,3 @@ ENV/
 # VSCode
 .vscode/
 
-# Data and models
-models/
